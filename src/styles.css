@@ -1,64 +1,281 @@
-.title-screen {
+/* App layout and core styles */
+
+.app-shell {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  padding-top: max(var(--space-24), env(safe-area-inset-top));
-  padding-bottom: max(var(--space-24), env(safe-area-inset-bottom));
-  padding-left: max(var(--space-16), env(safe-area-inset-left));
-  padding-right: max(var(--space-16), env(safe-area-inset-right));
+  max-width: 480px;
+  margin: 0 auto;
   background-color: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
 }
 
-.title-content {
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-16);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-8);
-  max-width: 360px;
+  gap: var(--space-16);
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
   width: 100%;
 }
 
-.title-icon {
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: var(--space-4);
-}
-
-.title-heading {
+/* Screen Title */
+.screen-title {
   font-size: 28px;
   line-height: 34px;
   font-weight: 600;
+  color: var(--text);
   letter-spacing: -0.02em;
+}
+
+/* Cash Section */
+.cash-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8) 0;
+}
+
+.cash-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.cash-amount {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.income-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.income-rate {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-label {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+}
+
+/* Sections & Cards */
+.section-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.section-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
   color: var(--text);
 }
 
-.title-tagline {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
+.info-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-subtitle {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
-.title-lab-name {
+.card-empty-text {
   font-size: 14px;
   line-height: 20px;
-  font-weight: 400;
   color: var(--text-secondary);
-  margin-top: var(--space-8);
 }
 
-.title-version {
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 400;
-  color: var(--text-tertiary);
+.model-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.model-name {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.model-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  margin-top: var(--space-4);
+}
+
+/* Training Card */
+.training-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.training-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.time-remaining {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.score-badge {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.training-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-8);
+  padding: var(--space-8) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stat-label {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.action-button {
+  width: 100%;
+}
+
+/* Empty Tab State */
+.empty-tab-surface {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-12);
+  min-height: 200px;
+}
+
+.empty-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-tab-text {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--text-secondary);
+}
+
+/* Modal Styling */
+.modal-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-description {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  width: 100%;
+}
+
+.text-input {
+  height: 48px;
+  border-radius: var(--radius-control);
+  background-color: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  padding: 0 var(--space-16);
+  outline: none;
+  box-shadow: none;
+  text-shadow: none;
+  box-sizing: border-box;
+  width: 100%;
+  transition: border-color var(--duration) var(--ease);
+}
+
+.text-input:focus {
+  border-color: var(--accent);
+}
+
+.modal-submit-button {
+  width: 100%;
 }

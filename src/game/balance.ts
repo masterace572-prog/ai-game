@@ -189,3 +189,16 @@ export const RIVALS_ERA_1: RivalDefinition[] = [
     hypeMultiplier: 1.15,
   },
 ];
+
+// Product name word lists from GAME_DESIGN.md
+export const NAME_ADJECTIVES = [
+  'Quiet', 'Amber', 'Brisk', 'Little', 'Copper', 'Velvet', 'Paper', 'North',
+  'Kind', 'Rapid', 'Soft', 'Bold', 'Glass', 'Lucky', 'Drift', 'Moss',
+  'Bright', 'Plain', 'Silver', 'Warm',
+] as const;
+
+export const NAME_NOUNS = [
+  'Lantern', 'Sparrow', 'Kettle', 'Harbor', 'Notebook', 'Orbit', 'Meadow',
+  'Anvil', 'Comet', 'Basket', 'Lighthouse', 'Marble', 'Willow', 'Pocket',
+  'Echo', 'Furnace', 'Sail', 'Pebble', 'Chorus', 'Atlas',
+] as const;
