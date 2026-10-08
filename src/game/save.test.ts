@@ -81,4 +81,60 @@ describe('Save / Load helpers', () => {
     expect(loaded.state.cash).toBe(18000);
     expect(loaded.state.labName).toBe('Backup Lab');
   });
+
+  it('save and load preserves model list and training state', () => {
+    const storage = new MemoryStorage();
+    const state = createInitialState('Model Test Lab', true);
+
+    state.launchedModels = [
+      {
+        id: 'm-1',
+        name: 'Quiet Sparrow',
+        sizeId: 'tiny',
+        score: 14,
+        trainedAt: 1000,
+        launched: true,
+        launchedAt: 1050,
+      },
+      {
+        id: 'm-2',
+        name: 'Copper Harbor',
+        sizeId: 'small',
+        score: 32,
+        trainedAt: 2000,
+        launched: true,
+        launchedAt: 2100,
+      },
+    ];
+    state.bestLaunchedModel = state.launchedModels[1];
+    state.readyModel = {
+      id: 'm-3',
+      name: 'Brisk Anvil',
+      sizeId: 'medium',
+      score: 75,
+      trainedAt: 3000,
+      launched: false,
+    };
+    state.currentTraining = {
+      id: 'job-1',
+      sizeId: 'large',
+      progressSeconds: 50,
+      totalSeconds: 300,
+      rolledScore: 165,
+      proposedName: 'Velvet Orbit',
+    };
+
+    saveGameState(state, storage);
+
+    const loaded = loadGameState(storage);
+    expect(loaded.state.launchedModels).toHaveLength(2);
+    expect(loaded.state.launchedModels[0].name).toBe('Quiet Sparrow');
+    expect(loaded.state.launchedModels[1].name).toBe('Copper Harbor');
+    expect(loaded.state.bestLaunchedModel?.name).toBe('Copper Harbor');
+    expect(loaded.state.bestLaunchedModel?.score).toBe(32);
+    expect(loaded.state.readyModel?.name).toBe('Brisk Anvil');
+    expect(loaded.state.readyModel?.score).toBe(75);
+    expect(loaded.state.currentTraining?.proposedName).toBe('Velvet Orbit');
+    expect(loaded.state.currentTraining?.progressSeconds).toBe(50);
+  });
 });

@@ -125,14 +125,120 @@ export function generateModelName(usedNames: string[]): string {
 }
 
 /**
- * Start training a model (Phase 2 focuses on Tiny).
+ * Model unlock rules according to GAME_DESIGN.md:
+ * - Tiny: nothing
+ * - Small: nothing
+ * - Medium: at least 1 model launched
+ * - Large: at least 1 Medium launched
+ * - Huge: Series A funding taken (not available yet)
+ * - Frontier: Series B taken AND research node agent-harness owned (not available yet)
  */
-export function startTraining(state: GameState, sizeId: ModelSizeId = 'tiny'): GameState {
-  const modelDef = MODEL_SIZES[sizeId];
-  if (!modelDef) return state;
-  if (state.cash < modelDef.cashCost) return state;
-  if (state.currentTraining !== null || state.readyModel !== null) return state;
+export function getModelUnlockStatus(
+  sizeId: ModelSizeId,
+  state: GameState
+): { unlocked: boolean; reason?: string } {
+  switch (sizeId) {
+    case 'tiny':
+    case 'small':
+      return { unlocked: true };
+    case 'medium': {
+      const hasLaunchedAny = state.launchedModels.length > 0;
+      if (!hasLaunchedAny) {
+        return { unlocked: false, reason: 'Requires at least 1 model launched' };
+      }
+      return { unlocked: true };
+    }
+    case 'large': {
+      const hasLaunchedMedium = state.launchedModels.some((m) => m.sizeId === 'medium');
+      if (!hasLaunchedMedium) {
+        return { unlocked: false, reason: 'Requires at least 1 Medium launched' };
+      }
+      return { unlocked: true };
+    }
+    case 'huge':
+      return { unlocked: false, reason: 'Requires Series A funding' };
+    case 'frontier':
+      return { unlocked: false, reason: 'Requires Series B and agent-harness research' };
+    default:
+      return { unlocked: false, reason: 'Locked' };
+  }
+}
 
+/**
+ * Check whether a model can be trained right now (unlocked, can afford, not busy).
+ */
+export function canTrainModel(
+  sizeId: ModelSizeId,
+  state: GameState
+): { canTrain: boolean; reason?: string } {
+  const unlockStatus = getModelUnlockStatus(sizeId, state);
+  if (!unlockStatus.unlocked) {
+    return { canTrain: false, reason: unlockStatus.reason };
+  }
+
+  const modelDef = MODEL_SIZES[sizeId];
+  if (!modelDef) {
+    return { canTrain: false, reason: 'Invalid model size' };
+  }
+
+  if (state.currentTraining !== null || state.readyModel !== null) {
+    return { canTrain: false, reason: 'Training already in progress' };
+  }
+
+  const usableGpus = getUsableGpus(state.gpus, state.powerCap);
+  if (usableGpus < modelDef.minUsableGpus) {
+    return {
+      canTrain: false,
+      reason: `Requires ${modelDef.minUsableGpus} usable GPUs (you have ${usableGpus})`,
+    };
+  }
+
+  if (state.researchers < modelDef.minResearchers) {
+    return {
+      canTrain: false,
+      reason: `Requires ${modelDef.minResearchers} researchers (you have ${state.researchers})`,
+    };
+  }
+
+  if (state.cash < modelDef.cashCost) {
+    return {
+      canTrain: false,
+      reason: `Need $${modelDef.cashCost.toLocaleString()} (you have $${Math.floor(state.cash).toLocaleString()})`,
+    };
+  }
+
+  return { canTrain: true };
+}
+
+/**
+ * Income calculation for Phase 3:
+ * Until rivals exist, placeholder income (not stacked with the stipend):
+ * - If you have a launched model, income per second is score * 0.15 and stipend is OFF.
+ *   Labeled "Preview income".
+ * - If you have no launched model, the $1 stipend stays ON.
+ *   Labeled "Stipend (temporary)".
+ */
+export function getIncomePerSec(state: GameState): { income: number; label: string } {
+  if (state.bestLaunchedModel) {
+    return {
+      income: state.bestLaunchedModel.score * 0.15,
+      label: 'Preview income',
+    };
+  }
+  return {
+    income: TEMP_STIPEND_PER_SEC,
+    label: 'Stipend (temporary)',
+  };
+}
+
+/**
+ * Start training a model for any of the six sizes.
+ */
+export function startTraining(state: GameState, sizeId: ModelSizeId): GameState {
+  const check = canTrainModel(sizeId, state);
+  if (!check.canTrain) return state;
+
+  const modelDef = MODEL_SIZES[sizeId];
   const usable = getUsableGpus(state.gpus, state.powerCap);
   const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable);
   const rolledScore = calculateScore(modelDef.baseScore, state.dataQuality, state.researchers);
@@ -167,8 +273,8 @@ export function stepGame(
     return { state, modelFinished: false };
   }
 
-  // Temporary stipend of $1/sec
-  const incomeEarned = TEMP_STIPEND_PER_SEC * cappedDelta;
+  const { income } = getIncomePerSec(state);
+  const incomeEarned = income * cappedDelta;
   const newCash = state.cash + incomeEarned;
   const newLifetime = state.lifetimeCashEarned + incomeEarned;
 

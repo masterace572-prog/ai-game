@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Cpu,
   ChartLine,
   Landmark,
   Menu,
   Play,
   ArrowUpRight,
+  Award,
 } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import { Button } from './ui/Button';
@@ -14,6 +14,7 @@ import { TopBar } from './ui/TopBar';
 import { BottomNav, type NavTabId } from './ui/BottomNav';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
+import { ModelsScreen } from './ui/ModelsScreen';
 import { loadGameState, saveGameState } from './game/save';
 import {
   stepGame,
@@ -22,13 +23,14 @@ import {
   getUsableGpus,
   getTinyTrainingTime,
   getExpectedScoreRange,
+  getIncomePerSec,
+  canTrainModel,
 } from './game/logic';
 import {
   MODEL_SIZES,
-  TEMP_STIPEND_PER_SEC,
   DEFAULT_LAB_NAME,
 } from './game/balance';
-import type { GameState } from './game/types';
+import type { GameState, ModelSizeId } from './game/types';
 import './styles.css';
 
 export const App: React.FC = () => {
@@ -96,7 +98,7 @@ export const App: React.FC = () => {
         stopTimer();
         triggerSave(gameStateRef.current);
       } else {
-        // Resume timer without large offline catch-up (Phase 2 rule)
+        // Resume timer without large offline catch-up (Phase 2 & 3 rule)
         startTimer();
       }
     };
@@ -129,8 +131,8 @@ export const App: React.FC = () => {
     triggerSave(nextState);
   };
 
-  const handleTrainTiny = () => {
-    const nextState = startTraining(gameStateRef.current, 'tiny');
+  const handleTrainModel = (sizeId: ModelSizeId) => {
+    const nextState = startTraining(gameStateRef.current, sizeId);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
@@ -145,6 +147,9 @@ export const App: React.FC = () => {
     }
   };
 
+  // Income calculations
+  const { income: incomePerSec, label: incomeLabel } = getIncomePerSec(gameState);
+
   // Derived values for Lab tab
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
   const tinyDef = MODEL_SIZES.tiny;
@@ -154,7 +159,7 @@ export const App: React.FC = () => {
     gameState.dataQuality,
     gameState.researchers
   );
-  const canAffordTiny = gameState.cash >= tinyDef.cashCost;
+  const trainTinyCheck = canTrainModel('tiny', gameState);
   const isBusy = gameState.currentTraining !== null || gameState.readyModel !== null;
 
   return (
@@ -163,7 +168,7 @@ export const App: React.FC = () => {
       <TopBar
         labName={gameState.labName}
         cash={gameState.cash}
-        incomePerSec={TEMP_STIPEND_PER_SEC}
+        incomePerSec={incomePerSec}
       />
 
       {/* Main Content Area */}
@@ -177,40 +182,69 @@ export const App: React.FC = () => {
                 ${Math.floor(gameState.cash).toLocaleString()}
               </div>
               <div className="income-badge">
-                <span className="income-rate">+${TEMP_STIPEND_PER_SEC.toFixed(2)}/s</span>
-                <span className="income-label">Stipend (temporary)</span>
+                <span className="income-rate">
+                  +${incomePerSec % 1 === 0 ? incomePerSec.toFixed(0) : incomePerSec.toFixed(2)}/s
+                </span>
+                <span className="income-label">{incomeLabel}</span>
               </div>
             </section>
 
-            {/* Public Model Card */}
+            {/* Best Launched Model Card */}
             <Surface className="info-card">
               <div className="card-header">
                 <span className="card-subtitle">Public Model</span>
+                {gameState.bestLaunchedModel && (
+                  <span className="best-badge">
+                    <Icon icon={Award} size={14} aria-hidden="true" />
+                    <span>Best</span>
+                  </span>
+                )}
               </div>
               {gameState.bestLaunchedModel ? (
-                <div className="model-summary">
-                  <div className="model-name">{gameState.bestLaunchedModel.name}</div>
-                  <div className="model-meta">
-                    <span>Score: {gameState.bestLaunchedModel.score}</span>
-                    <span>·</span>
-                    <span>Tiny</span>
+                <div className="best-model-display">
+                  <div className="best-score-callout">
+                    <span className="best-score-label">Score</span>
+                    <span className="best-score-number">
+                      {gameState.bestLaunchedModel.score}
+                    </span>
+                  </div>
+                  <div className="model-summary">
+                    <div className="model-name">{gameState.bestLaunchedModel.name}</div>
+                    <div className="model-meta">
+                      <span>{MODEL_SIZES[gameState.bestLaunchedModel.sizeId]?.name ?? 'Model'}</span>
+                      <span>·</span>
+                      <span>+${(gameState.bestLaunchedModel.score * 0.15).toFixed(2)}/s preview</span>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <p className="card-empty-text">No models launched yet. Train a Tiny model below.</p>
+                <p className="card-empty-text">
+                  No models launched yet. Train and launch a model to earn preview income.
+                </p>
               )}
             </Surface>
 
-            {/* Training Job / Ready Model / Idle Card */}
+            {/* Training Section */}
             <section className="section-block">
-              <h2 className="section-title">Training</h2>
+              <div className="section-header-row">
+                <h2 className="section-title">Training</h2>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setActiveTab('models')}
+                >
+                  All models
+                </button>
+              </div>
 
               {gameState.currentTraining ? (
                 <Surface className="training-card">
                   <div className="training-header">
                     <div>
                       <div className="model-name">{gameState.currentTraining.proposedName}</div>
-                      <div className="card-subtitle">Training Tiny model</div>
+                      <div className="card-subtitle">
+                        Training {MODEL_SIZES[gameState.currentTraining.sizeId]?.name ?? 'Model'}
+                      </div>
                     </div>
                     <span className="time-remaining">
                       {Math.max(
@@ -233,7 +267,9 @@ export const App: React.FC = () => {
                   <div className="training-header">
                     <div>
                       <div className="model-name">{gameState.readyModel.name}</div>
-                      <div className="card-subtitle">Training complete</div>
+                      <div className="card-subtitle">
+                        {MODEL_SIZES[gameState.readyModel.sizeId]?.name} model finished
+                      </div>
                     </div>
                     <div className="score-badge">
                       Score: {gameState.readyModel.score}
@@ -253,14 +289,14 @@ export const App: React.FC = () => {
                   <div className="training-header">
                     <div>
                       <div className="model-name">Tiny Model</div>
-                      <div className="card-subtitle">Fast, low-cost starter model</div>
+                      <div className="card-subtitle">Fast starter model</div>
                     </div>
                   </div>
 
                   <div className="training-stats">
                     <div className="stat-item">
                       <span className="stat-label">Cost</span>
-                      <span className="stat-value">${tinyDef.cashCost}</span>
+                      <span className="stat-value">${tinyDef.cashCost.toLocaleString()}</span>
                     </div>
                     <div className="stat-item">
                       <span className="stat-label">Est. Time</span>
@@ -276,15 +312,17 @@ export const App: React.FC = () => {
 
                   <Button
                     variant="primary"
-                    onClick={handleTrainTiny}
-                    disabled={!canAffordTiny || isBusy}
+                    onClick={() => handleTrainModel('tiny')}
+                    disabled={!trainTinyCheck.canTrain || isBusy}
                     className="action-button"
                   >
                     <Icon icon={Play} size={16} aria-hidden="true" />
                     <span>
-                      {!canAffordTiny
-                        ? `Need $${tinyDef.cashCost} to Train`
-                        : `Train Tiny Model — $${tinyDef.cashCost}`}
+                      {isBusy
+                        ? 'Busy'
+                        : !trainTinyCheck.canTrain
+                        ? trainTinyCheck.reason ?? 'Cannot Train'
+                        : `Train Tiny Model — $${tinyDef.cashCost.toLocaleString()}`}
                     </span>
                   </Button>
                 </Surface>
@@ -293,10 +331,17 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {activeTab !== 'lab' && (
+        {activeTab === 'models' && (
+          <ModelsScreen
+            gameState={gameState}
+            onTrainModel={handleTrainModel}
+            onLaunchModel={handleLaunch}
+          />
+        )}
+
+        {(activeTab === 'market' || activeTab === 'invest' || activeTab === 'more') && (
           <div className="tab-pane">
             <h1 className="screen-title">
-              {activeTab === 'models' && 'Models'}
               {activeTab === 'market' && 'Market'}
               {activeTab === 'invest' && 'Invest'}
               {activeTab === 'more' && 'More'}
@@ -305,9 +350,7 @@ export const App: React.FC = () => {
               <div className="empty-icon-wrap">
                 <Icon
                   icon={
-                    activeTab === 'models'
-                      ? Cpu
-                      : activeTab === 'market'
+                    activeTab === 'market'
                       ? ChartLine
                       : activeTab === 'invest'
                       ? Landmark

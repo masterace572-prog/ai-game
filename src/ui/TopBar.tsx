@@ -76,7 +76,7 @@ export const TopBar: React.FC<TopBarProps> = ({ labName, cash, incomePerSec }) =
             fontVariantNumeric: 'tabular-nums',
           }}
         >
-          +${incomePerSec.toFixed(0)}/s
+          +${incomePerSec % 1 === 0 ? incomePerSec.toFixed(0) : incomePerSec.toFixed(1)}/s
         </span>
       </div>
     </header>

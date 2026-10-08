@@ -1,5 +1,14 @@
 export type ModelSizeId = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'frontier';
 
+export const MODEL_SIZE_ORDER: ModelSizeId[] = [
+  'tiny',
+  'small',
+  'medium',
+  'large',
+  'huge',
+  'frontier',
+];
+
 export interface TrainedModel {
   id: string;
   name: string;
