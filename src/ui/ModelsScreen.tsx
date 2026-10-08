@@ -18,6 +18,7 @@ import {
   getExpectedScoreRange,
   getModelUnlockStatus,
   canTrainModel,
+  getTotalScoreMultiplier,
 } from '../game/logic';
 
 export interface ModelsScreenProps {
@@ -97,11 +98,14 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
             const def = MODEL_SIZES[sizeId];
             const unlockStatus = getModelUnlockStatus(sizeId, gameState);
             const trainCheck = canTrainModel(sizeId, gameState);
-            const estTime = calculateTrainingTime(def.baseSeconds, usableGpus);
+            const timeMult = gameState.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
+            const archMult = getTotalScoreMultiplier(gameState);
+            const estTime = calculateTrainingTime(def.baseSeconds, usableGpus, timeMult);
             const scoreRange = getExpectedScoreRange(
               def.baseScore,
               gameState.dataQuality,
-              gameState.researchers
+              gameState.researchers,
+              archMult
             );
 
             return (

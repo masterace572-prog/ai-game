@@ -22,6 +22,9 @@ import {
   sellStock,
   buyDataCenter,
   startMarketingCampaign,
+  canBuyResearchNode,
+  buyResearchNode,
+  getResearchScoreMultiplier,
 } from './logic';
 import { MODEL_SIZES, FRESHNESS_FLOOR } from './balance';
 import * as balanceModule from './balance';
@@ -400,5 +403,108 @@ describe('Phase 5: Economy, Shop, Salaries, Stocks & Funding', () => {
   it('calculates appeal with reputation and hype', () => {
     const appeal = calculateAppeal(50, 0.8, 50, 1.15);
     expect(appeal).toBeCloseTo(55.2, 5);
+  });
+});
+
+describe('Phase 6: Research Tree and Frontier Unlocks', () => {
+  it('optimizers then mixture apply 1.08 * 1.12', () => {
+    let state = createInitialState('Research Lab', true);
+    state.cash = 100000;
+
+    expect(getResearchScoreMultiplier(state)).toBe(1.0);
+
+    // Buy optimizers
+    state = buyResearchNode(state, 'optimizers');
+    expect(state.researchOwned['optimizers']).toBe(true);
+    expect(getResearchScoreMultiplier(state)).toBeCloseTo(1.08, 5);
+
+    // Buy mixture
+    state = buyResearchNode(state, 'mixture');
+    expect(state.researchOwned['mixture']).toBe(true);
+    expect(getResearchScoreMultiplier(state)).toBeCloseTo(1.08 * 1.12, 5);
+  });
+
+  it('mixture cannot be bought first', () => {
+    const state = createInitialState('Prereq Lab', true);
+    state.cash = 100000;
+
+    const check = canBuyResearchNode('mixture', state);
+    expect(check.canBuy).toBe(false);
+    expect(check.reason).toMatch(/Better optimizers/i);
+
+    // Buying should return unchanged state
+    const afterAttempt = buyResearchNode(state, 'mixture');
+    expect(afterAttempt.researchOwned['mixture']).toBeUndefined();
+    expect(afterAttempt.cash).toBe(100000);
+  });
+
+  it('brand studio multiplies revenue by 1.10', () => {
+    const state = createInitialState('Brand Lab', true);
+    state.bestLaunchedModel = {
+      id: 'brand-model',
+      name: 'Flagship Alpha',
+      sizeId: 'medium',
+      score: 50,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+
+    const marketBefore = calculateMarket(state);
+    expect(marketBefore.revenuePerSec).toBeGreaterThan(0);
+
+    const stateWithBrand = {
+      ...state,
+      researchOwned: { brand: true },
+    };
+
+    const marketAfter = calculateMarket(stateWithBrand);
+    expect(marketAfter.revenuePerSec).toBeCloseTo(marketBefore.revenuePerSec * 1.10, 5);
+    expect(marketAfter.subscriptionRevenue).toBeCloseTo(marketBefore.subscriptionRevenue * 1.10, 5);
+    expect(marketAfter.apiRevenue).toBeCloseTo(marketBefore.apiRevenue * 1.10, 5);
+  });
+
+  it('Frontier stays locked with Series B but no agent-harness', () => {
+    const state = createInitialState('Frontier Lab', true);
+    state.gpus = 64;
+    state.powerCap = 64;
+    state.researchers = 20;
+    state.fundingTaken = { 'series-b': true };
+    state.researchOwned = {}; // No agent-harness
+
+    const statusWithoutHarness = getModelUnlockStatus('frontier', state);
+    expect(statusWithoutHarness.unlocked).toBe(false);
+    expect(statusWithoutHarness.reason).toMatch(/agent harness/i);
+
+    // Give agent harness
+    const stateWithHarness = {
+      ...state,
+      researchOwned: { 'agent-harness': true },
+    };
+
+    const statusWithHarness = getModelUnlockStatus('frontier', stateWithHarness);
+    expect(statusWithHarness.unlocked).toBe(true);
+  });
+
+  it('Clean data adds +5 data quality once', () => {
+    let state = createInitialState('Data Lab', true);
+    state.cash = 10000;
+    state.dataQuality = 30;
+
+    state = buyResearchNode(state, 'clean-data');
+    expect(state.dataQuality).toBe(35);
+    expect(state.researchOwned['clean-data']).toBe(true);
+  });
+
+  it('Cheap flops multiplies training time by 0.90', () => {
+    const normalTime = calculateTrainingTime(100, 4, 1.0);
+    const discountedTime = calculateTrainingTime(100, 4, 0.90);
+    expect(discountedTime).toBeCloseTo(normalTime * 0.90, 5);
+  });
+
+  it('Recruiter multiplies hire cost by 0.85', () => {
+    const baseCost = getResearcherPrice(2, false);
+    const recruiterCost = getResearcherPrice(2, true);
+    expect(recruiterCost).toBe(Math.round(baseCost * 0.85));
   });
 });

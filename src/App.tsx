@@ -18,6 +18,7 @@ import { ModelsScreen } from './ui/ModelsScreen';
 import { MarketScreen } from './ui/MarketScreen';
 import { InvestScreen } from './ui/InvestScreen';
 import { TeamScreen } from './ui/TeamScreen';
+import { ResearchScreen } from './ui/ResearchScreen';
 import { MoreScreen } from './ui/MoreScreen';
 import { loadGameState, saveGameState } from './game/save';
 import {
@@ -40,12 +41,14 @@ import {
   buyStock,
   sellStock,
   startMarketingCampaign,
+  buyResearchNode,
+  getTotalScoreMultiplier,
 } from './game/logic';
 import {
   MODEL_SIZES,
   DEFAULT_LAB_NAME,
 } from './game/balance';
-import type { GameState, ModelSizeId, FundingRoundId } from './game/types';
+import type { GameState, ModelSizeId, FundingRoundId, ResearchNodeId } from './game/types';
 import './styles.css';
 
 export const App: React.FC = () => {
@@ -54,7 +57,7 @@ export const App: React.FC = () => {
     return loaded.state;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId | 'team'>('lab');
+  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research'>('lab');
   const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
 
   const gameStateRef = useRef(gameState);
@@ -242,6 +245,14 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleBuyResearch = (nodeId: ResearchNodeId) => {
+    const nextState = buyResearchNode(gameStateRef.current, nodeId);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
   // Real market revenue & net income
   const { income: netIncome, label: incomeLabel } = getIncomePerSec(gameState);
   const market = calculateMarket(gameState);
@@ -249,11 +260,14 @@ export const App: React.FC = () => {
   // Derived values for Lab tab
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
   const tinyDef = MODEL_SIZES.tiny;
-  const tinyTrainingTime = getTinyTrainingTime(usableGpus);
+  const timeMult = gameState.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
+  const archMult = getTotalScoreMultiplier(gameState);
+  const tinyTrainingTime = getTinyTrainingTime(usableGpus, timeMult);
   const expectedTinyRange = getExpectedScoreRange(
     tinyDef.baseScore,
     gameState.dataQuality,
-    gameState.researchers
+    gameState.researchers,
+    archMult
   );
   const trainTinyCheck = canTrainModel('tiny', gameState);
   const isBusy = gameState.currentTraining !== null || gameState.readyModel !== null;
@@ -558,10 +572,19 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'research' && (
+          <ResearchScreen
+            gameState={gameState}
+            onBackToMore={() => setActiveTab('more')}
+            onBuyResearch={handleBuyResearch}
+          />
+        )}
+
         {activeTab === 'more' && (
           <MoreScreen
             gameState={gameState}
             onNavigateToTeam={() => setActiveTab('team')}
+            onNavigateToResearch={() => setActiveTab('research')}
           />
         )}
       </main>

@@ -45,8 +45,9 @@ export function getGpuPrice(gpusOwned: number): number {
 export const RESEARCHER_BASE_COST = 8000;
 export const RESEARCHER_COST_GROWTH = 1.18;
 
-export function getResearcherPrice(researchersOwned: number): number {
-  return Math.round(RESEARCHER_BASE_COST * Math.pow(RESEARCHER_COST_GROWTH, researchersOwned));
+export function getResearcherPrice(researchersOwned: number, hasRecruiter: boolean = false): number {
+  const base = Math.round(RESEARCHER_BASE_COST * Math.pow(RESEARCHER_COST_GROWTH, researchersOwned));
+  return hasRecruiter ? Math.round(base * 0.85) : base;
 }
 
 // Data upgrade formula inputs
@@ -95,6 +96,95 @@ export const MARKETING_CAMPAIGN_COOLDOWN = 180;
 export const MARKETING_HYPE_BOOST = 1.25;
 export const STOCK_MAX_SHARES = 200;
 export const STOCK_SELL_FEE = 0.02; // pays 0.98
+
+// Research tree nodes from GAME_DESIGN.md
+export type ResearchNodeId =
+  | 'clean-data'
+  | 'optimizers'
+  | 'cheap-flops'
+  | 'recruiter'
+  | 'brand'
+  | 'mixture'
+  | 'reasoning'
+  | 'agent-harness';
+
+export interface ResearchNodeDef {
+  id: ResearchNodeId;
+  name: string;
+  cost: number;
+  effect: string;
+  requiresNodeId?: ResearchNodeId;
+  scoreMultiplier?: number;
+}
+
+export const RESEARCH_NODES: Record<ResearchNodeId, ResearchNodeDef> = {
+  'clean-data': {
+    id: 'clean-data',
+    name: 'Clean data pipeline',
+    cost: 3000,
+    effect: 'Data quality +5, once',
+  },
+  'optimizers': {
+    id: 'optimizers',
+    name: 'Better optimizers',
+    cost: 8000,
+    effect: 'Model score ×1.08',
+    scoreMultiplier: 1.08,
+  },
+  'cheap-flops': {
+    id: 'cheap-flops',
+    name: 'Cheap flops',
+    cost: 10000,
+    effect: 'Training time ×0.90',
+  },
+  'recruiter': {
+    id: 'recruiter',
+    name: 'Recruiter',
+    cost: 12000,
+    effect: 'Hire researcher cost ×0.85',
+  },
+  'brand': {
+    id: 'brand',
+    name: 'Brand studio',
+    cost: 15000,
+    effect: 'Market revenue ×1.10',
+  },
+  'mixture': {
+    id: 'mixture',
+    name: 'Mixture kernels',
+    cost: 25000,
+    effect: 'Model score ×1.12',
+    requiresNodeId: 'optimizers',
+    scoreMultiplier: 1.12,
+  },
+  'reasoning': {
+    id: 'reasoning',
+    name: 'Reasoning traces',
+    cost: 80000,
+    effect: 'Model score ×1.15',
+    requiresNodeId: 'mixture',
+    scoreMultiplier: 1.15,
+  },
+  'agent-harness': {
+    id: 'agent-harness',
+    name: 'Agent harness',
+    cost: 200000,
+    effect: 'Model score ×1.15, required for Frontier',
+    requiresNodeId: 'reasoning',
+    scoreMultiplier: 1.15,
+  },
+};
+
+export const RESEARCH_NODE_ORDER: ResearchNodeId[] = [
+  'clean-data',
+  'optimizers',
+  'cheap-flops',
+  'recruiter',
+  'brand',
+  'mixture',
+  'reasoning',
+  'agent-harness',
+];
 
 export interface FundingDef {
   id: 'seed' | 'series-a' | 'series-b';

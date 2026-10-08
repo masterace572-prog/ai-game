@@ -24,6 +24,8 @@ import {
   STOCK_MAX_SHARES,
   STOCK_SELL_FEE,
   FUNDING_ROUNDS,
+  RESEARCH_NODES,
+  RESEARCH_NODE_ORDER,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -35,6 +37,7 @@ import type {
   RivalState,
   TrainedModel,
   TrainingJob,
+  ResearchNodeId,
 } from './types';
 
 export {
@@ -46,6 +49,8 @@ export {
   FUNDING_ROUNDS,
   STOCK_MAX_SHARES,
   STOCK_SELL_FEE,
+  RESEARCH_NODES,
+  RESEARCH_NODE_ORDER,
 };
 
 /**
@@ -99,8 +104,8 @@ export function calculateTrainingTime(
 /**
  * Helper specifically for Tiny model training time.
  */
-export function getTinyTrainingTime(usableGpus: number): number {
-  return calculateTrainingTime(MODEL_SIZES.tiny.baseSeconds, usableGpus);
+export function getTinyTrainingTime(usableGpus: number, researchTimeMultiplier: number = 1): number {
+  return calculateTrainingTime(MODEL_SIZES.tiny.baseSeconds, usableGpus, researchTimeMultiplier);
 }
 
 /**
@@ -211,13 +216,41 @@ export function getModelUnlockStatus(
       }
       return { unlocked: true };
     }
-    case 'huge':
+    case 'huge': {
+      const usableGpus = getUsableGpus(state.gpus, state.powerCap);
       if (!state.fundingTaken?.['series-a']) {
         return { unlocked: false, reason: 'Requires Series A funding' };
       }
+      if (usableGpus < 16) {
+        return { unlocked: false, reason: `Requires 16 usable GPUs (${usableGpus} online)` };
+      }
+      if (state.researchers < 8) {
+        return { unlocked: false, reason: `Requires 8 researchers (${state.researchers} on staff)` };
+      }
       return { unlocked: true };
-    case 'frontier':
-      return { unlocked: false, reason: 'Requires Series B and agent-harness research' };
+    }
+    case 'frontier': {
+      const usableGpus = getUsableGpus(state.gpus, state.powerCap);
+      const hasSeriesB = Boolean(state.fundingTaken?.['series-b']);
+      const hasAgentHarness = Boolean(state.researchOwned?.['agent-harness']);
+
+      if (!hasSeriesB && !hasAgentHarness) {
+        return { unlocked: false, reason: 'Requires Series B and Agent harness' };
+      }
+      if (!hasSeriesB) {
+        return { unlocked: false, reason: 'Requires Series B funding' };
+      }
+      if (!hasAgentHarness) {
+        return { unlocked: false, reason: 'Requires Agent harness research' };
+      }
+      if (usableGpus < 32) {
+        return { unlocked: false, reason: `Requires 32 usable GPUs (${usableGpus} online)` };
+      }
+      if (state.researchers < 12) {
+        return { unlocked: false, reason: `Requires 12 researchers (${state.researchers} on staff)` };
+      }
+      return { unlocked: true };
+    }
     default:
       return { unlocked: false, reason: 'Locked' };
   }
@@ -342,7 +375,8 @@ export function calculateMarket(state: GameState): MarketBreakdown {
 
   const playerShare = totalAppeal > 0 ? playerAppeal / totalAppeal : 0;
   const demand = BASE_DEMAND * Math.pow(DEMAND_GROWTH_PER_ERA, (state.era || 1) - 1);
-  const revenuePerSec = demand * playerShare;
+  const brandMultiplier = state.researchOwned?.['brand'] ? 1.10 : 1.0;
+  const revenuePerSec = demand * playerShare * brandMultiplier;
   const subscriptionRevenue = revenuePerSec * SUBSCRIPTION_SHARE;
   const apiRevenue = revenuePerSec * API_SHARE;
 
@@ -431,7 +465,8 @@ export function buyGpu(state: GameState): GameState {
 }
 
 export function hireResearcher(state: GameState): GameState {
-  const cost = getResearcherPrice(state.researchers);
+  const hasRecruiter = Boolean(state.researchOwned?.['recruiter']);
+  const cost = getResearcherPrice(state.researchers, hasRecruiter);
   if (state.cash < cost) return state;
 
   return {
@@ -589,6 +624,72 @@ export function startMarketingCampaign(state: GameState): GameState {
   };
 }
 
+// --- Research Tree (Phase 6) ---
+
+export function getResearchScoreMultiplier(state: GameState): number {
+  let mult = 1.0;
+  if (state.researchOwned?.['optimizers']) mult *= 1.08;
+  if (state.researchOwned?.['mixture']) mult *= 1.12;
+  if (state.researchOwned?.['reasoning']) mult *= 1.15;
+  if (state.researchOwned?.['agent-harness']) mult *= 1.15;
+  return mult;
+}
+
+export function getTotalScoreMultiplier(state: GameState): number {
+  return getResearchScoreMultiplier(state) * getDataCenterScoreMultiplier(state.dataCentersOwned ?? 0);
+}
+
+export function canBuyResearchNode(
+  nodeId: ResearchNodeId,
+  state: GameState
+): { canBuy: boolean; reason?: string } {
+  if (state.researchOwned?.[nodeId]) {
+    return { canBuy: false, reason: 'Researched' };
+  }
+
+  const def = RESEARCH_NODES[nodeId];
+  if (!def) {
+    return { canBuy: false, reason: 'Unknown node' };
+  }
+
+  if (def.requiresNodeId && !state.researchOwned?.[def.requiresNodeId]) {
+    const parentDef = RESEARCH_NODES[def.requiresNodeId];
+    return { canBuy: false, reason: `Requires ${parentDef?.name ?? def.requiresNodeId}` };
+  }
+
+  if (state.cash < def.cost) {
+    return { canBuy: false, reason: `Need $${def.cost.toLocaleString()}` };
+  }
+
+  return { canBuy: true };
+}
+
+export function buyResearchNode(
+  state: GameState,
+  nodeId: ResearchNodeId
+): GameState {
+  const check = canBuyResearchNode(nodeId, state);
+  if (!check.canBuy) return state;
+
+  const def = RESEARCH_NODES[nodeId];
+  const nextResearchOwned = {
+    ...state.researchOwned,
+    [nodeId]: true,
+  };
+
+  let nextDataQuality = state.dataQuality;
+  if (nodeId === 'clean-data') {
+    nextDataQuality = Math.min(100, state.dataQuality + 5);
+  }
+
+  return {
+    ...state,
+    cash: state.cash - def.cost,
+    dataQuality: nextDataQuality,
+    researchOwned: nextResearchOwned,
+  };
+}
+
 /**
  * Start training a model for any of the six sizes.
  */
@@ -598,8 +699,9 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
 
   const modelDef = MODEL_SIZES[sizeId];
   const usable = getUsableGpus(state.gpus, state.powerCap);
-  const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable);
-  const archMult = getDataCenterScoreMultiplier(state.dataCentersOwned ?? 0);
+  const timeMult = state.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
+  const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable, timeMult);
+  const archMult = getTotalScoreMultiplier(state);
   const rolledScore = calculateScore(
     modelDef.baseScore,
     state.dataQuality,

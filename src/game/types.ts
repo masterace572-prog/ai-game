@@ -52,6 +52,16 @@ export interface RivalState {
 
 export type FundingRoundId = 'seed' | 'series-a' | 'series-b';
 
+export type ResearchNodeId =
+  | 'clean-data'
+  | 'optimizers'
+  | 'cheap-flops'
+  | 'recruiter'
+  | 'brand'
+  | 'mixture'
+  | 'reasoning'
+  | 'agent-harness';
+
 export interface GameState {
   version: 1;
   savedAt: number;
@@ -86,4 +96,7 @@ export interface GameState {
   marketingActiveSeconds: number; // remaining duration of hype
   marketingCooldownSeconds: number; // cooldown before next campaign
   payrollTight: boolean;
+
+  // Research tree state (Phase 6)
+  researchOwned: Partial<Record<ResearchNodeId, boolean>>;
 }

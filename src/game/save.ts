@@ -129,6 +129,9 @@ export function createInitialState(
     marketingActiveSeconds: 0,
     marketingCooldownSeconds: 0,
     payrollTight: false,
+
+    // Research state
+    researchOwned: {},
   };
 }
 
@@ -185,6 +188,7 @@ function parseState(raw: string | null): GameState | null {
         marketingActiveSeconds: parsed.marketingActiveSeconds ?? 0,
         marketingCooldownSeconds: parsed.marketingCooldownSeconds ?? 0,
         payrollTight: parsed.payrollTight ?? false,
+        researchOwned: parsed.researchOwned ?? {},
       } as GameState;
     }
   } catch {

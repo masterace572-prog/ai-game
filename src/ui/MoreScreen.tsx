@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Users,
+  FlaskConical,
   Info,
   ChevronRight,
 } from 'lucide-react';
@@ -12,11 +13,13 @@ import type { GameState } from '../game/types';
 export interface MoreScreenProps {
   gameState: GameState;
   onNavigateToTeam: () => void;
+  onNavigateToResearch: () => void;
 }
 
 export const MoreScreen: React.FC<MoreScreenProps> = ({
   gameState,
   onNavigateToTeam,
+  onNavigateToResearch,
 }) => {
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
 
@@ -32,52 +35,102 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
         </p>
       </div>
 
-      {/* Primary Navigation Item: Team & Compute */}
-      <Surface
-        onClick={onNavigateToTeam}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onNavigateToTeam();
-          }
-        }}
-        style={{
-          padding: 'var(--space-4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          minHeight: '64px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--surface-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Icon icon={Users} size={20} color="var(--primary)" aria-hidden="true" />
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-              Team & Compute
+      {/* Navigation Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {/* Research & Development */}
+        <Surface
+          onClick={onNavigateToResearch}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToResearch();
+            }
+          }}
+          style={{
+            padding: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            minHeight: '64px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--surface-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon icon={FlaskConical} size={20} color="var(--primary)" aria-hidden="true" />
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              GPUs, researchers, cooling, snacks, and data quality
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+                Research & Development
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Optimizers, cheap flops, recruiter, brand studio, and agent harness
+              </div>
             </div>
           </div>
-        </div>
-        <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-      </Surface>
+          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
+        </Surface>
+
+        {/* Team & Compute */}
+        <Surface
+          onClick={onNavigateToTeam}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToTeam();
+            }
+          }}
+          style={{
+            padding: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            minHeight: '64px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--surface-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon icon={Users} size={20} color="var(--primary)" aria-hidden="true" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+                Team & Compute
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                GPUs, researchers, cooling, snacks, and data quality
+              </div>
+            </div>
+          </div>
+          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
+        </Surface>
+      </div>
 
       {/* Lab Overview Card */}
       <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
