@@ -397,19 +397,88 @@ Six steps, only on a brand new save. Skip button always visible.
 
 ## UI style
 
-Dark lab, not a spreadsheet.
+Dark lab, restrained and quiet.
 
-- Background `#0c1222`, cards `#172036`, text `#f4f1ea`, muted text `#9aa6bd`.
-- Cash and positive numbers `#3ddc97`. Accent buttons `#f5b942` with dark text `#1a1408`. Danger `#ff6b6b`. Rivals and links `#7aa2ff`.
-- Corners 16 px on cards, 12 px on buttons. Card padding 16 px. Gap 12 px.
-- Font: `ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif`. No downloaded fonts.
-- Smallest text 14 px. Titles 22–28 px. The cash number is the largest text on the Lab screen.
-- Every tappable control is at least 48 px tall and has a visible label, not only an icon.
-- Bottom nav labels: Lab, Models, Market, Invest, More.
-- Format big numbers: 999 as `999`, then `1.2K`, `3.4M`, `2.1B`. One decimal is enough. Cash on buttons shows the full cost if it is under 100000, otherwise the short form.
-- Icons: emoji from a local map in code, not an icon font, not a CDN. Suggested: Lab 🏭, Models 🧠, Market 📊, Invest 💹, More ☰, Research 🔬, Team 👥, Events 🎲, Achievements 🏆, Era 🌌, Settings ⚙️, GPU 🖥️, Data 📚, Train ▶️, Launch 🚀.
-- Motion: 150 ms fades, a soft pulse on the training bar. If the player turns on Reduce motion in Settings, stop pulses and use instant transitions.
-- Sound: tiny tones made with the Web Audio API (no audio files). A tap tick, a higher tone on launch, a soft chord when an event appears. A mute toggle in the top bar, remembered in the save. Default **sound on**.
+Hard rules:
+- No emoji or pictographs anywhere in the UI.
+- No linear, radial, or conic gradients.
+- No neon or blur glow.
+- No box-shadow, text-shadow, or drop-shadow.
+- Components use only the defined CSS tokens and do not introduce new hex colours.
+- Icons only from `lucide-react` at stroke 1.75 and sizes: 22 nav, 20 row, 16 inline, 24 empty.
+- Font: Inter bundled with `@fontsource/inter`, weights 400, 500, and 600. No font CDN, no Google Fonts.
+- Page background is `--bg` (`#111110`). Font family is `--font`. Antialiased. No horizontal scroll.
+
+Tokens:
+- `--bg`: `#111110`
+- `--surface`: `#1a1a18`
+- `--surface-2`: `#232321`
+- `--border`: `#2c2c29`
+- `--border-strong`: `#3f3f3a`
+- `--text`: `#eceae4`
+- `--text-secondary`: `#a19e96`
+- `--text-tertiary`: `#6f6d66`
+- `--accent`: `#b9a48a`
+- `--accent-pressed`: `#a38e74`
+- `--on-accent`: `#1a1814`
+- `--positive`: `#8fbfa8` (for numbers only, never big fills)
+- `--negative`: `#d27b6a` (for numbers only, never big fills)
+- `--scrim`: `rgba(0, 0, 0, 0.64)`
+- `--font`: `"Inter", ui-sans-serif, system-ui, sans-serif`
+- `--radius-control`: `8px`
+- `--radius-card`: `12px`
+- `--radius-sheet`: `16px`
+- `--duration`: `160ms`
+- `--ease`: `cubic-bezier(0.2, 0, 0, 1)`
+
+Layout and geometry:
+- Spacing: 8pt grid (spacing tokens: 4, 8, 12, 16, 24, 32, 40).
+- Radius: 8 controls, 12 cards, 16 sheet top.
+- Surface: flat region with bg `--surface`, 1px `--border`, radius 12, padding 16. No shadow.
+- Button: primary (height 48, radius 8, bg `--accent`, text `--on-accent`, weight 600, pressed bg `--accent-pressed`) and secondary (height 48, radius 8, transparent, 1px `--border-strong`, text `--text`). No shadow.
+
+Typography:
+- nav: 11/14
+- meta: 12/16
+- label: 13/18
+- body: 16/24 (body never below 14)
+- section: 20/28 weight 600
+- screen title: 28/34 weight 600
+- cash: 32/40 weight 600 with tabular-nums
+- Number format: 999, 1.2K, 3.4M, 2.1B.
+
+Icon map (lucide-react, stroke 1.75):
+- Lab: Factory
+- Models: Cpu
+- Market: ChartLine
+- Invest: Landmark
+- More: Menu
+- Research: FlaskConical
+- Team: Users
+- Events: Bell
+- Achievements: Award
+- New era: History
+- Settings: Settings
+- GPU: Cpu
+- Data: Database
+- Train: Play
+- Launch: ArrowUpRight
+- Sound: Volume2 and VolumeX
+
+Rival marks:
+- Monograms, not emoji: 32px square, radius 8, `--surface-2`, 1px `--border`, two letters weight 600 in `--text`.
+- HA (Helix Atelier), PM (Pebble Mind), NG (Northglass), VW (Vesper Workshop), CL (Copperline), BR (Bracket Research).
+
+Screen components:
+- Top bar: `--bg`, bottom 1px `--border`, pad 8 16 plus safe-area-top, lab name 16/600 truncated, cash and income tabular on the right, no pill.
+- Stat card: label 13/500 secondary, value 20/600 tabular.
+- List row: min-height 56, bottom border, icon 20.
+- Bottom nav: `--bg`, top border, safe-area-bottom, inactive `--text-tertiary`, active `--text` weight 600, no active pill.
+- Progress: height 4, track `--surface-2`, fill `--accent`, no pulse.
+- Toast: surface, 1px border, radius 8, no shadow.
+- Modal: flat `--scrim`, sheet `--surface`, top radius 16, no blur.
+- Motion: 160ms `cubic-bezier(0.2, 0, 0, 1)`. No bounce or pulse. Reduced motion means no animation.
+- Sound: tiny tones made with the Web Audio API (no audio files). A tap tick, a higher tone on launch, a soft chord when an event appears. A mute toggle in the top bar, remembered in the save. Default sound on.
 
 ## Settings
 

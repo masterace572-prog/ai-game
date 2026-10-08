@@ -71,9 +71,68 @@ After every phase:
 
 - Portrait layout. It must look right at 360 px wide. No horizontal page scroll.
 - Touch targets at least 48 px tall. No hover-only controls. No tiny links.
-- Stick to the colors, type, and emoji icons in `GAME_DESIGN.md`.
 - Use only local files. No Google Fonts, no icon CDN, no remote images, no analytics script.
 - The WebView must work with the network turned off.
+
+## Visual rules (hard)
+
+- No emoji or pictographs anywhere in the UI.
+- No linear, radial, or conic gradients.
+- No neon or blur glow.
+- No box-shadow, text-shadow, or drop-shadow.
+- Components use only the tokens defined in `src/ui/tokens.css` and do not introduce new hex colours.
+- Icons only from `lucide-react` at stroke 1.75 and sizes: 22 nav, 20 row, 16 inline, 24 empty.
+- Font: Inter bundled with `@fontsource/inter`, weights 400, 500, and 600. No font CDN, no Google Fonts.
+- Page background is `--bg` (`#111110`). Font family is `--font`. Antialiased. No horizontal scroll.
+
+Spacing and geometry:
+- Spacing: 8pt grid (4, 8, 12, 16, 24, 32, 40).
+- Radius: 8 controls, 12 cards, 16 sheet top.
+- Surface: flat region with bg `--surface`, 1px `--border`, radius 12, padding 16. No shadow.
+- Button: primary (height 48, radius 8, bg `--accent`, text `--on-accent`, weight 600, pressed bg `--accent-pressed`) and secondary (height 48, radius 8, transparent, 1px `--border-strong`, text `--text`). No shadow.
+
+Typography:
+- nav: 11/14
+- meta: 12/16
+- label: 13/18
+- body: 16/24 (body never below 14)
+- section: 20/28 weight 600
+- screen title: 28/34 weight 600
+- cash: 32/40 weight 600 with tabular-nums
+- Number format: 999, 1.2K, 3.4M, 2.1B.
+
+Icon map:
+- Lab: Factory
+- Models: Cpu
+- Market: ChartLine
+- Invest: Landmark
+- More: Menu
+- Research: FlaskConical
+- Team: Users
+- Events: Bell
+- Achievements: Award
+- New era: History
+- Settings: Settings
+- GPU: Cpu
+- Data: Database
+- Train: Play
+- Launch: ArrowUpRight
+- Sound: Volume2 and VolumeX
+
+Rival marks:
+- Monograms, not emoji: 32px square, radius 8, `--surface-2`, 1px `--border`, two letters weight 600 in `--text`.
+- HA, PM, NG, VW, CL, BR for Helix Atelier, Pebble Mind, Northglass, Vesper Workshop, Copperline, Bracket Research.
+
+Components and layout spec:
+- Top bar: `--bg`, bottom 1px `--border`, pad 8 16 plus safe-area-top, lab name 16/600 truncated, cash and income tabular on the right, no pill.
+- Stat card: label 13/500 secondary, value 20/600 tabular.
+- List row: min-height 56, bottom border, icon 20.
+- Bottom nav: `--bg`, top border, safe-area-bottom, inactive `--text-tertiary`, active `--text` weight 600, no active pill.
+- Progress: height 4, track `--surface-2`, fill `--accent`, no pulse.
+- Toast: surface, 1px border, radius 8, no shadow.
+- Modal: flat `--scrim`, sheet `--surface`, top radius 16, no blur.
+- Motion: 160ms `cubic-bezier(0.2, 0, 0, 1)`. No bounce or pulse. Reduced motion means no animation.
+- Positive `#8fbfa8` and negative `#d27b6a` are for numbers only, never big fills.
 
 ## Offline and saves
 

@@ -4,7 +4,7 @@
 export const SAVE_KEY = 'modelfoundry.save.v1';
 export const BACKUP_SAVE_KEY = 'modelfoundry.save.backup';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.1.1';
 export const DEFAULT_LAB_NAME = 'Little Lamp Lab';
 
 // Starting resources
