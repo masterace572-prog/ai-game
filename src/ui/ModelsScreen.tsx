@@ -19,6 +19,7 @@ import {
   getModelUnlockStatus,
   canTrainModel,
   getTotalScoreMultiplier,
+  getAchievementScoreMultiplier,
 } from '../game/logic';
 
 import { formatMoney } from './format';
@@ -102,12 +103,15 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
             const trainCheck = canTrainModel(sizeId, gameState);
             const timeMult = gameState.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
             const archMult = getTotalScoreMultiplier(gameState);
+            const achScoreMult = getAchievementScoreMultiplier(gameState);
             const estTime = calculateTrainingTime(def.baseSeconds, usableGpus, timeMult);
             const scoreRange = getExpectedScoreRange(
               def.baseScore,
               gameState.dataQuality,
               gameState.researchers,
-              archMult
+              archMult,
+              gameState.eraPoints ?? 0,
+              achScoreMult
             );
 
             return (

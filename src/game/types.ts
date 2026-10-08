@@ -131,6 +131,7 @@ export interface GameState {
   reputation: number;
   era: number;
   eraPoints: number;
+  allTimeBestScore?: number;
   usedModelNames: string[];
   currentTraining: TrainingJob | null;
   readyModel: TrainedModel | null;

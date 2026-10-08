@@ -31,6 +31,10 @@ import {
   checkAchievements,
   getAchievementRevenueMultiplier,
   simulateOfflineCatchUp,
+  calculateEraPointsGained,
+  canPrestigeNewEra,
+  prestigeNewEra,
+  createRivalsForEra,
 } from './logic';
 import { MODEL_SIZES, FRESHNESS_FLOOR } from './balance';
 import * as balanceModule from './balance';
@@ -673,5 +677,124 @@ describe('Phase 8: Polish, Offline Catch-Up, and Number Formatting', () => {
     expect(nextState.currentTraining).toBeNull();
     expect(nextState.readyModel?.name).toBe('Offline Model Alpha');
     expect(nextState.readyModel?.score).toBe(12);
+  });
+});
+
+describe('Phase 9: Offline catch-up, export/import, and new era prestige', () => {
+  it('10 hours away simulates 8 hours', () => {
+    const now = 100000000;
+    const state = createInitialState('Ten Hour Lab', true);
+    state.savedAt = now - 10 * 3600 * 1000; // 10 hours away
+
+    const { report } = simulateOfflineCatchUp(state, now);
+    expect(report).not.toBeNull();
+    expect(report?.awaySeconds).toBe(36000); // 10 hours
+    expect(report?.simulatedSeconds).toBe(28800); // 8 hours cap
+    expect(report?.capped).toBe(true);
+  });
+
+  it('3 seconds away does not open a payout', () => {
+    const now = 100000000;
+    const state = createInitialState('Quick Tab Lab', true);
+    state.savedAt = now - 3000; // 3 seconds away
+
+    const { nextState, report } = simulateOfflineCatchUp(state, now);
+    expect(report).toBeNull(); // No payout modal opened
+    expect(nextState.savedAt).toBe(now);
+  });
+
+  it('era points for score 250 and cash earned 2000000 match the formula', () => {
+    // formula: max(1, floor(bestLaunchedScore / 80) + floor(lifetimeCashEarned / 1000000))
+    // floor(250 / 80) = 3
+    // floor(2000000 / 1000000) = 2
+    // 3 + 2 = 5
+    const points = calculateEraPointsGained(250, 2000000);
+    expect(points).toBe(5);
+  });
+
+  it('a reset clears cash to 25000 and keeps era points', () => {
+    let state = createInitialState('Reset Lab', true);
+    state.era = 1;
+    state.eraPoints = 12; // had 12 era points previously
+    state.cash = 950000; // large cash pile
+    state.gpus = 8;
+    state.powerCap = 12;
+    state.researchers = 6;
+    state.dataQuality = 75;
+    state.lifetimeCashEarned = 2500000;
+    state.coolingPurchases = 3;
+    state.dataCentersOwned = 2;
+    state.researchOwned = { 'optimizers': true, 'mixture': true };
+    state.stocksOwned = { helix: 50, pebble: 20, northglass: 10, vesper: 5 };
+    state.bestLaunchedModel = {
+      id: 'model-epic',
+      name: 'Epic 1',
+      sizeId: 'huge',
+      score: 260,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+
+    expect(canPrestigeNewEra(state)).toBe(true);
+
+    const nextState = prestigeNewEra(state);
+
+    // Clears cash to starting 25000
+    expect(nextState.cash).toBe(25000);
+    // Keeps previous era points + gained:
+    // gained = floor(260 / 80) + floor(2500000 / 1000000) = 3 + 2 = 5
+    // total = 12 + 5 = 17
+    expect(nextState.eraPoints).toBe(17);
+    // Era advanced
+    expect(nextState.era).toBe(2);
+    // Preserves lab name
+    expect(nextState.labName).toBe('Reset Lab');
+    // Basic resources reset to starting values
+    expect(nextState.gpus).toBe(2);
+    expect(nextState.powerCap).toBe(4);
+    expect(nextState.researchers).toBe(1);
+    expect(nextState.dataQuality).toBe(20);
+    expect(nextState.reputation).toBe(0);
+    // Research and stocks reset
+    expect(Object.keys(nextState.researchOwned)).toHaveLength(0);
+    expect(nextState.stocksOwned).toEqual({ helix: 0, pebble: 0, northglass: 0, vesper: 0 });
+    expect(nextState.coolingPurchases).toBe(0);
+    expect(nextState.dataCentersOwned).toBe(0);
+    expect(nextState.launchedModels).toHaveLength(0);
+    expect(nextState.currentTraining).toBeNull();
+    expect(nextState.readyModel).toBeNull();
+    // Era 2 rivals include Copperline and Bracket Research
+    expect(nextState.rivals.some((r) => r.id === 'copperline')).toBe(true);
+    expect(nextState.rivals.some((r) => r.id === 'bracket')).toBe(true);
+    expect(nextState.rivals).toHaveLength(6);
+    // Older rivals scaled: Helix starting score at era 2 = 18 * 1.15 = 21
+    const helix = nextState.rivals.find((r) => r.id === 'helix');
+    expect(helix?.bestScore).toBe(21);
+    // Copperline score = 30 * era = 60
+    const copperline = nextState.rivals.find((r) => r.id === 'copperline');
+    expect(copperline?.bestScore).toBe(60);
+    // Bracket score = 36 * era = 72
+    const bracket = nextState.rivals.find((r) => r.id === 'bracket');
+    expect(bracket?.bestScore).toBe(72);
+  });
+
+  it('Era points boost future model training scores according to 1 + eraPoints * 0.02', () => {
+    // Base calculation:
+    // base 100, dataQuality 20, researchers 1, arch 1, roll 1.0
+    // quality = 0.65 + 0.35 * 0.20 = 0.72
+    // talent = 1 + min(0.50, 1 * 0.03) = 1.03
+    // With 0 era points:
+    const score0 = calculateScore(100, 20, 1, 1, 0, 1, 1.0);
+    // With 10 era points (bonus = 1 + 10 * 0.02 = 1.20):
+    const score10 = calculateScore(100, 20, 1, 1, 10, 1, 1.0);
+    expect(score10).toBe(Math.round(score0 * 1.20));
+  });
+
+  it('createRivalsForEra seeds 4 rivals for era 1 and 6 rivals for era 2', () => {
+    const era1Rivals = createRivalsForEra(1);
+    expect(era1Rivals).toHaveLength(4);
+    const era2Rivals = createRivalsForEra(2);
+    expect(era2Rivals).toHaveLength(6);
   });
 });

@@ -35,6 +35,12 @@ import {
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
   OFFLINE_CAP_SECONDS,
+  STARTING_CASH,
+  STARTING_GPUS,
+  STARTING_POWER_CAP,
+  STARTING_RESEARCHERS,
+  STARTING_DATA_QUALITY,
+  STARTING_REPUTATION,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -1065,11 +1071,14 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
   const timeMult = state.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
   const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable, timeMult);
   const archMult = getTotalScoreMultiplier(state);
+  const achScoreBonus = getAchievementScoreMultiplier(state);
   const rolledScore = calculateScore(
     modelDef.baseScore,
     state.dataQuality,
     state.researchers,
-    archMult
+    archMult,
+    state.eraPoints ?? 0,
+    achScoreBonus
   );
   const proposedName = generateModelName(state.usedModelNames);
 
@@ -1549,4 +1558,233 @@ export function simulateOfflineCatchUp(
   };
 
   return { nextState: finalizedState, report };
+}
+
+/**
+ * Seed rivals for a given Era.
+ * - Era 1: Helix Atelier (18), Pebble Mind (9), Northglass (14), Vesper Workshop (11).
+ * - Era 2+: Scales older rivals' starting scores by 1 + 0.15 * (era - 1).
+ *   Adds Copperline (30 * era, stock 100) and Bracket Research (36 * era, stock 110).
+ */
+export function createRivalsForEra(era: number = 1): RivalState[] {
+  const safeEra = Math.max(1, era);
+  const scale = 1 + 0.15 * (safeEra - 1);
+
+  const helixScore = Math.round(18 * scale);
+  const pebbleScore = Math.round(9 * scale);
+  const northglassScore = Math.round(14 * scale);
+  const vesperScore = Math.round(11 * scale);
+
+  const rivals: RivalState[] = [
+    {
+      id: 'helix',
+      name: 'Helix Atelier',
+      shortCode: 'HA',
+      style: 'Balanced, slightly ahead',
+      bestScore: helixScore,
+      freshness: 1.0,
+      stockPrice: safeEra === 1 ? 120 : calculateStockPrice(helixScore),
+      speedMultiplier: 1.0,
+      growthFactor: 1.08,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['medium', 'large'],
+      trainingJob: null,
+      idleTimer: 5,
+    },
+    {
+      id: 'pebble',
+      name: 'Pebble Mind',
+      shortCode: 'PM',
+      style: 'Many small models',
+      bestScore: pebbleScore,
+      freshness: 1.0,
+      stockPrice: safeEra === 1 ? 40 : calculateStockPrice(pebbleScore),
+      speedMultiplier: 0.7,
+      growthFactor: 1.04,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['tiny', 'small'],
+      trainingJob: null,
+      idleTimer: 3,
+    },
+    {
+      id: 'northglass',
+      name: 'Northglass',
+      shortCode: 'NG',
+      style: 'Slow, larger models',
+      bestScore: northglassScore,
+      freshness: 1.0,
+      stockPrice: safeEra === 1 ? 80 : calculateStockPrice(northglassScore),
+      speedMultiplier: 1.4,
+      growthFactor: 1.12,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['medium', 'large'],
+      trainingJob: null,
+      idleTimer: 8,
+    },
+    {
+      id: 'vesper',
+      name: 'Vesper Workshop',
+      shortCode: 'VW',
+      style: 'Hype, average models',
+      bestScore: vesperScore,
+      freshness: 1.0,
+      stockPrice: safeEra === 1 ? 55 : calculateStockPrice(vesperScore),
+      speedMultiplier: 1.0,
+      growthFactor: 1.05,
+      hypeMultiplier: 1.15,
+      preferredSizes: ['small', 'medium'],
+      trainingJob: null,
+      idleTimer: 4,
+    },
+  ];
+
+  if (safeEra >= 2) {
+    rivals.push(
+      {
+        id: 'copperline',
+        name: 'Copperline',
+        shortCode: 'CL',
+        style: 'Enterprise compute',
+        bestScore: 30 * safeEra,
+        freshness: 1.0,
+        stockPrice: 100,
+        speedMultiplier: 1.1,
+        growthFactor: 1.09,
+        hypeMultiplier: 1.0,
+        preferredSizes: ['medium', 'large', 'huge'],
+        trainingJob: null,
+        idleTimer: 6,
+      },
+      {
+        id: 'bracket',
+        name: 'Bracket Research',
+        shortCode: 'BR',
+        style: 'Pure architecture',
+        bestScore: 36 * safeEra,
+        freshness: 1.0,
+        stockPrice: 110,
+        speedMultiplier: 1.3,
+        growthFactor: 1.10,
+        hypeMultiplier: 1.0,
+        preferredSizes: ['large', 'huge', 'frontier'],
+        trainingJob: null,
+        idleTimer: 7,
+      }
+    );
+  }
+
+  return rivals;
+}
+
+/**
+ * Era points formula from GAME_DESIGN.md:
+ * gained = max(1, floor(bestLaunchedScore / 80) + floor(lifetimeCashEarned / 1000000))
+ */
+export function calculateEraPointsGained(bestScore: number, lifetimeCash: number): number {
+  const scoreGained = Math.floor(bestScore / 80);
+  const cashGained = Math.floor(lifetimeCash / 1000000);
+  return Math.max(1, scoreGained + cashGained);
+}
+
+/**
+ * Requirement to prestige: best launched score >= 250 OR lifetime cash earned >= 2,000,000.
+ */
+export function canPrestigeNewEra(state: GameState): boolean {
+  const bestScore = state.bestLaunchedModel?.score ?? 0;
+  const lifetimeCash = state.lifetimeCashEarned ?? 0;
+  return bestScore >= 250 || lifetimeCash >= 2000000;
+}
+
+/**
+ * Reset and advance to a new Era.
+ * - Adds gained era points, sets era to era + 1.
+ * - Resets: cash ($25,000), GPUs (2), powerCap (4), researchers (1), dataQuality (20),
+ *   reputation (0), models, training job, rivals (re-seeded), stocks, funding rounds,
+ *   research nodes, data centers, cooling, office snacks, marketing state, hype, events.
+ * - Keeps: era, era points, achievements + bonuses ('new-era' unlocked), all-time best score,
+ *   lab name, settings, timesPrestiged.
+ */
+export function prestigeNewEra(state: GameState): GameState {
+  if (!canPrestigeNewEra(state)) {
+    return state;
+  }
+
+  const bestScore = state.bestLaunchedModel?.score ?? 0;
+  const lifetimeCash = state.lifetimeCashEarned ?? 0;
+  const gained = calculateEraPointsGained(bestScore, lifetimeCash);
+
+  const nextEra = state.era + 1;
+  const nextEraPoints = (state.eraPoints ?? 0) + gained;
+  const nextTimesPrestiged = (state.timesPrestiged ?? 0) + 1;
+  const allTimeBestScore = Math.max(state.allTimeBestScore ?? 0, bestScore);
+
+  const nextAchievements = {
+    ...(state.achievements ?? {}),
+    'new-era': true,
+  };
+
+  const nextRivals = createRivalsForEra(nextEra);
+
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    labName: state.labName,
+    labNameConfirmed: true,
+
+    // Normal starting resources
+    cash: STARTING_CASH,
+    gpus: STARTING_GPUS,
+    powerCap: STARTING_POWER_CAP,
+    researchers: STARTING_RESEARCHERS,
+    dataQuality: STARTING_DATA_QUALITY,
+    reputation: STARTING_REPUTATION,
+
+    // Kept across eras
+    era: nextEra,
+    eraPoints: nextEraPoints,
+    allTimeBestScore,
+    timesPrestiged: nextTimesPrestiged,
+
+    // Reset models & training
+    usedModelNames: [],
+    currentTraining: null,
+    readyModel: null,
+    bestLaunchedModel: null,
+    launchedModels: [],
+    lifetimeCashEarned: 0,
+    lastTickTime: Date.now(),
+    playerFreshness: 1.0,
+
+    // Re-seed rivals
+    rivals: nextRivals,
+
+    // Reset economy
+    coolingPurchases: 0,
+    officeSnacks: false,
+    salaryMultiplier: 1.0,
+    dataCentersOwned: 0,
+    stocksOwned: { helix: 0, pebble: 0, northglass: 0, vesper: 0 },
+    stockPriceTimer: 30,
+    fundingTaken: {},
+    marketingActiveSeconds: 0,
+    marketingCooldownSeconds: 0,
+    payrollTight: false,
+
+    // Reset research
+    researchOwned: {},
+
+    // Reset events
+    eventCooldownTimer: 90,
+    eventRollTimer: 60,
+    pendingEvent: null,
+    activeTimedEvents: [],
+    eventLogs: state.eventLogs ?? [],
+
+    // Kept achievements & settings
+    achievements: nextAchievements,
+    tutorialStep: 6,
+    tutorialDone: true,
+    soundEnabled: state.soundEnabled ?? true,
+    reduceMotion: state.reduceMotion ?? false,
+  };
 }

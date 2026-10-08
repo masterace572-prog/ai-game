@@ -5,12 +5,13 @@ import {
   Bell,
   Award,
   Settings,
+  History,
   Info,
   ChevronRight,
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Surface } from './Surface';
-import { getUsableGpus } from '../game/logic';
+import { getUsableGpus, canPrestigeNewEra } from '../game/logic';
 import type { GameState } from '../game/types';
 
 export interface MoreScreenProps {
@@ -20,6 +21,7 @@ export interface MoreScreenProps {
   onNavigateToEvents: () => void;
   onNavigateToAchievements: () => void;
   onNavigateToSettings: () => void;
+  onNavigateToNewEra: () => void;
 }
 
 export const MoreScreen: React.FC<MoreScreenProps> = ({
@@ -29,8 +31,10 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
   onNavigateToEvents,
   onNavigateToAchievements,
   onNavigateToSettings,
+  onNavigateToNewEra,
 }) => {
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
+  const canPrestige = canPrestigeNewEra(gameState);
 
   return (
     <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
@@ -228,6 +232,71 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Permanent milestones and persistent multiplier bonuses
+              </div>
+            </div>
+          </div>
+          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
+        </Surface>
+
+        {/* New Era (Prestige) */}
+        <Surface
+          onClick={onNavigateToNewEra}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToNewEra();
+            }
+          }}
+          style={{
+            padding: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            minHeight: '64px',
+            borderColor: canPrestige ? 'var(--primary)' : 'var(--border)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--surface-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon icon={History} size={20} color={canPrestige ? 'var(--primary)' : 'var(--text-secondary)'} aria-hidden="true" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+                  New Era
+                </span>
+                {canPrestige && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      backgroundColor: 'var(--surface-2)',
+                      border: '1px solid var(--primary)',
+                      color: 'var(--primary)',
+                      padding: '1px 6px',
+                      borderRadius: 'var(--radius-control)',
+                    }}
+                  >
+                    Ready
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Advance operational era and claim permanent Era Points
               </div>
             </div>
           </div>

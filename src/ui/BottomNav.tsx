@@ -19,7 +19,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export interface BottomNavProps {
-  activeTab: NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings';
+  activeTab: NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings' | 'new-era';
   onSelectTab: (tab: NavTabId) => void;
 }
 
@@ -43,7 +43,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onSelectTab }) 
           activeTab === 'research' ||
           activeTab === 'events' ||
           activeTab === 'achievements' ||
-          activeTab === 'settings';
+          activeTab === 'settings' ||
+          activeTab === 'new-era';
         const isActive = activeTab === item.id || (isMoreSub && item.id === 'more');
         const color = isActive ? 'var(--text)' : 'var(--text-tertiary)';
         const fontWeight = isActive ? 600 : 400;

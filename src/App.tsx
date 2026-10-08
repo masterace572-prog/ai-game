@@ -22,6 +22,7 @@ import { ResearchScreen } from './ui/ResearchScreen';
 import { EventsLogScreen } from './ui/EventsLogScreen';
 import { AchievementsScreen } from './ui/AchievementsScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
+import { NewEraScreen } from './ui/NewEraScreen';
 import { MoreScreen } from './ui/MoreScreen';
 import { EventModal } from './ui/EventModal';
 import { TutorialOverlay } from './ui/TutorialOverlay';
@@ -52,8 +53,10 @@ import {
   startMarketingCampaign,
   buyResearchNode,
   getTotalScoreMultiplier,
+  getAchievementScoreMultiplier,
   resolveEvent,
   simulateOfflineCatchUp,
+  prestigeNewEra,
   type OfflineReport,
 } from './game/logic';
 import {
@@ -76,7 +79,7 @@ export const App: React.FC = () => {
     return nextState;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings'>('lab');
+  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings' | 'new-era'>('lab');
   const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -318,6 +321,15 @@ export const App: React.FC = () => {
     setActiveTab('lab');
   };
 
+  const handlePrestige = () => {
+    playLaunch(gameStateRef.current.soundEnabled ?? true);
+    const nextState = prestigeNewEra(gameStateRef.current);
+    setGameState(nextState);
+    triggerSave(nextState);
+    setActiveTab('lab');
+    setToastMessage(`Era ${nextState.era} Begun! Gained permanent Era Points.`);
+  };
+
   // Economy Actions
   const handleBuyGpu = () => {
     playTap(gameStateRef.current.soundEnabled ?? true);
@@ -427,12 +439,15 @@ export const App: React.FC = () => {
   const tinyDef = MODEL_SIZES.tiny;
   const timeMult = gameState.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
   const archMult = getTotalScoreMultiplier(gameState);
+  const achScoreMult = getAchievementScoreMultiplier(gameState);
   const tinyTrainingTime = getTinyTrainingTime(usableGpus, timeMult);
   const expectedTinyRange = getExpectedScoreRange(
     tinyDef.baseScore,
     gameState.dataQuality,
     gameState.researchers,
-    archMult
+    archMult,
+    gameState.eraPoints ?? 0,
+    achScoreMult
   );
   const trainTinyCheck = canTrainModel('tiny', gameState);
   const isBusy = gameState.currentTraining !== null || gameState.readyModel !== null;
@@ -776,6 +791,14 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'new-era' && (
+          <NewEraScreen
+            gameState={gameState}
+            onBackToMore={() => setActiveTab('more')}
+            onPrestige={handlePrestige}
+          />
+        )}
+
         {activeTab === 'more' && (
           <MoreScreen
             gameState={gameState}
@@ -784,6 +807,7 @@ export const App: React.FC = () => {
             onNavigateToEvents={() => setActiveTab('events')}
             onNavigateToAchievements={() => setActiveTab('achievements')}
             onNavigateToSettings={() => setActiveTab('settings')}
+            onNavigateToNewEra={() => setActiveTab('new-era')}
           />
         )}
       </main>

@@ -108,6 +108,7 @@ export function createInitialState(
     reputation: STARTING_REPUTATION,
     era: STARTING_ERA,
     eraPoints: STARTING_ERA_POINTS,
+    allTimeBestScore: 0,
     usedModelNames: [],
     currentTraining: null,
     readyModel: null,
@@ -219,6 +220,7 @@ function parseState(raw: string | null): GameState | null {
         // Achievements
         achievements: parsed.achievements ?? {},
         timesPrestiged: parsed.timesPrestiged ?? 0,
+        allTimeBestScore: parsed.allTimeBestScore ?? 0,
 
         // Tutorial: existing saves not forced back into tutorial
         tutorialStep: parsed.tutorialStep ?? 6,
