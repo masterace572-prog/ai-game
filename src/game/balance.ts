@@ -17,8 +17,14 @@ export const STARTING_REPUTATION = 0;
 export const STARTING_ERA = 1;
 export const STARTING_ERA_POINTS = 0;
 
-// Temporary stipend (early phases only, until rival market revenue exists)
-export const TEMP_STIPEND_PER_SEC = 1;
+// Market & Appeal constants from GAME_DESIGN.md
+export const BASE_DEMAND = 6;
+export const DEMAND_GROWTH_PER_ERA = 1.55;
+export const SUBSCRIPTION_SHARE = 0.65;
+export const API_SHARE = 0.35;
+export const FRESHNESS_DECAY_PER_MIN = 0.015;
+export const FRESHNESS_FLOOR = 0.40;
+export const REPUTATION_DECAY_PER_MIN = 0.2;
 
 // Offline cap
 export const OFFLINE_CAP_HOURS = 8;

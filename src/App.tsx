@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ChartLine,
   Landmark,
   Menu,
   Play,
@@ -15,6 +14,7 @@ import { BottomNav, type NavTabId } from './ui/BottomNav';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
 import { ModelsScreen } from './ui/ModelsScreen';
+import { MarketScreen } from './ui/MarketScreen';
 import { loadGameState, saveGameState } from './game/save';
 import {
   stepGame,
@@ -24,6 +24,7 @@ import {
   getTinyTrainingTime,
   getExpectedScoreRange,
   getIncomePerSec,
+  calculateMarket,
   canTrainModel,
 } from './game/logic';
 import {
@@ -98,7 +99,7 @@ export const App: React.FC = () => {
         stopTimer();
         triggerSave(gameStateRef.current);
       } else {
-        // Resume timer without large offline catch-up (Phase 2 & 3 rule)
+        // Resume timer without large offline catch-up
         startTimer();
       }
     };
@@ -147,8 +148,9 @@ export const App: React.FC = () => {
     }
   };
 
-  // Income calculations
+  // Real market revenue
   const { income: incomePerSec, label: incomeLabel } = getIncomePerSec(gameState);
+  const market = calculateMarket(gameState);
 
   // Derived values for Lab tab
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
@@ -183,9 +185,13 @@ export const App: React.FC = () => {
               </div>
               <div className="income-badge">
                 <span className="income-rate">
-                  +${incomePerSec % 1 === 0 ? incomePerSec.toFixed(0) : incomePerSec.toFixed(2)}/s
+                  +${incomePerSec.toFixed(2)}/s
                 </span>
-                <span className="income-label">{incomeLabel}</span>
+                <span className="income-label">
+                  {market.playerShare > 0
+                    ? `${incomeLabel} (${(market.playerShare * 100).toFixed(1)}% share)`
+                    : 'No market revenue'}
+                </span>
               </div>
             </section>
 
@@ -213,13 +219,13 @@ export const App: React.FC = () => {
                     <div className="model-meta">
                       <span>{MODEL_SIZES[gameState.bestLaunchedModel.sizeId]?.name ?? 'Model'}</span>
                       <span>·</span>
-                      <span>+${(gameState.bestLaunchedModel.score * 0.15).toFixed(2)}/s preview</span>
+                      <span>Freshness {((gameState.playerFreshness ?? 1.0) * 100).toFixed(0)}%</span>
                     </div>
                   </div>
                 </div>
               ) : (
                 <p className="card-empty-text">
-                  No models launched yet. Train and launch a model to earn preview income.
+                  No models launched yet. Launch your first model to enter the market and compete with rivals.
                 </p>
               )}
             </Surface>
@@ -339,23 +345,20 @@ export const App: React.FC = () => {
           />
         )}
 
-        {(activeTab === 'market' || activeTab === 'invest' || activeTab === 'more') && (
+        {activeTab === 'market' && (
+          <MarketScreen gameState={gameState} />
+        )}
+
+        {(activeTab === 'invest' || activeTab === 'more') && (
           <div className="tab-pane">
             <h1 className="screen-title">
-              {activeTab === 'market' && 'Market'}
               {activeTab === 'invest' && 'Invest'}
               {activeTab === 'more' && 'More'}
             </h1>
             <Surface className="empty-tab-surface">
               <div className="empty-icon-wrap">
                 <Icon
-                  icon={
-                    activeTab === 'market'
-                      ? ChartLine
-                      : activeTab === 'invest'
-                      ? Landmark
-                      : Menu
-                  }
+                  icon={activeTab === 'invest' ? Landmark : Menu}
                   size={24}
                   color="var(--text-secondary)"
                   aria-hidden="true"

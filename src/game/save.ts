@@ -11,7 +11,7 @@ import {
   STARTING_ERA_POINTS,
   DEFAULT_LAB_NAME,
 } from './balance';
-import type { GameState } from './types';
+import type { GameState, RivalState } from './types';
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -24,6 +24,71 @@ export function getDefaultStorage(): StorageLike | null {
     return window.localStorage;
   }
   return null;
+}
+
+export function createDefaultRivals(): RivalState[] {
+  return [
+    {
+      id: 'helix',
+      name: 'Helix Atelier',
+      shortCode: 'HA',
+      style: 'Balanced, slightly ahead',
+      bestScore: 18,
+      freshness: 1.0,
+      stockPrice: 120,
+      speedMultiplier: 1.0,
+      growthFactor: 1.08,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['medium', 'large'],
+      trainingJob: null,
+      idleTimer: 5,
+    },
+    {
+      id: 'pebble',
+      name: 'Pebble Mind',
+      shortCode: 'PM',
+      style: 'Many small models',
+      bestScore: 9,
+      freshness: 1.0,
+      stockPrice: 40,
+      speedMultiplier: 0.7,
+      growthFactor: 1.04,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['tiny', 'small'],
+      trainingJob: null,
+      idleTimer: 3,
+    },
+    {
+      id: 'northglass',
+      name: 'Northglass',
+      shortCode: 'NG',
+      style: 'Slow, larger models',
+      bestScore: 14,
+      freshness: 1.0,
+      stockPrice: 80,
+      speedMultiplier: 1.4,
+      growthFactor: 1.12,
+      hypeMultiplier: 1.0,
+      preferredSizes: ['medium', 'large'],
+      trainingJob: null,
+      idleTimer: 8,
+    },
+    {
+      id: 'vesper',
+      name: 'Vesper Workshop',
+      shortCode: 'VW',
+      style: 'Hype, average models',
+      bestScore: 11,
+      freshness: 1.0,
+      stockPrice: 55,
+      speedMultiplier: 1.0,
+      growthFactor: 1.05,
+      hypeMultiplier: 1.15,
+      preferredSizes: ['small', 'medium'],
+      trainingJob: null,
+      idleTimer: 4,
+    },
+  ];
 }
 
 export function createInitialState(
@@ -50,6 +115,8 @@ export function createInitialState(
     launchedModels: [],
     lifetimeCashEarned: 0,
     lastTickTime: Date.now(),
+    playerFreshness: 1.0,
+    rivals: createDefaultRivals(),
   };
 }
 
@@ -93,7 +160,11 @@ function parseState(raw: string | null): GameState | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.version === 1 && typeof parsed.cash === 'number') {
-      return parsed as GameState;
+      return {
+        ...parsed,
+        playerFreshness: parsed.playerFreshness ?? 1.0,
+        rivals: Array.isArray(parsed.rivals) && parsed.rivals.length > 0 ? parsed.rivals : createDefaultRivals(),
+      } as GameState;
     }
   } catch {
     return null;
@@ -137,7 +208,7 @@ export function loadGameState(storage?: StorageLike | null): LoadResult {
           lastTickTime: Date.now(),
         },
         loadedFromBackup: true,
-        corrupted: rawMain !== null, // True if main was corrupt
+        corrupted: rawMain !== null,
       };
     }
   }

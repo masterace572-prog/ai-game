@@ -2,15 +2,40 @@ import {
   MODEL_SIZES,
   NAME_ADJECTIVES,
   NAME_NOUNS,
-  TEMP_STIPEND_PER_SEC,
+  BASE_DEMAND,
+  DEMAND_GROWTH_PER_ERA,
+  SUBSCRIPTION_SHARE,
+  API_SHARE,
+  FRESHNESS_DECAY_PER_MIN,
+  FRESHNESS_FLOOR,
+  REPUTATION_DECAY_PER_MIN,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
   getCoolingPrice,
 } from './balance';
-import type { GameState, ModelSizeId, TrainedModel, TrainingJob } from './types';
+import type {
+  GameState,
+  ModelSizeId,
+  RivalState,
+  TrainedModel,
+  TrainingJob,
+} from './types';
 
 export { getGpuPrice, getResearcherPrice, getDataUpgradePrice, getCoolingPrice };
+
+/**
+ * NPC training base durations from GAME_DESIGN.md:
+ * Tiny 20s, Small 45s, Medium 90s, Large 180s, Huge 300s, Frontier 600s
+ */
+export const NPC_BASE_SECONDS: Record<ModelSizeId, number> = {
+  tiny: 20,
+  small: 45,
+  medium: 90,
+  large: 180,
+  huge: 300,
+  frontier: 600,
+};
 
 /**
  * Usable GPUs is the smaller of GPUs owned and power cap.
@@ -211,23 +236,101 @@ export function canTrainModel(
 }
 
 /**
- * Income calculation for Phase 3:
- * Until rivals exist, placeholder income (not stacked with the stipend):
- * - If you have a launched model, income per second is score * 0.15 and stipend is OFF.
- *   Labeled "Preview income".
- * - If you have no launched model, the $1 stipend stays ON.
- *   Labeled "Stipend (temporary)".
+ * Appeal formula from GAME_DESIGN.md:
+ * appeal = score * freshness * (1 + reputation / 250) * hypeMultiplier
+ */
+export function calculateAppeal(
+  score: number,
+  freshness: number,
+  reputation: number = 0,
+  hypeMultiplier: number = 1.0
+): number {
+  return score * freshness * (1 + reputation / 250) * hypeMultiplier;
+}
+
+/**
+ * Player appeal is derived from their best launched model.
+ * Unlaunched models have no appeal (0).
+ */
+export function getPlayerAppeal(state: GameState): number {
+  if (!state.bestLaunchedModel) return 0;
+  return calculateAppeal(
+    state.bestLaunchedModel.score,
+    state.playerFreshness ?? 1.0,
+    state.reputation ?? 0,
+    1.0
+  );
+}
+
+/**
+ * Rival appeal: score * freshness * (1 + 0/250) * hypeMultiplier.
+ */
+export function getRivalAppeal(rival: RivalState): number {
+  return calculateAppeal(
+    rival.bestScore,
+    rival.freshness,
+    0,
+    rival.hypeMultiplier
+  );
+}
+
+export interface MarketBreakdown {
+  playerAppeal: number;
+  rivalAppeals: Record<string, number>;
+  totalAppeal: number;
+  playerShare: number; // 0 to 1
+  demand: number;
+  revenuePerSec: number;
+  subscriptionRevenue: number;
+  apiRevenue: number;
+}
+
+/**
+ * Market revenue formula from GAME_DESIGN.md:
+ * yourAppeal = appeal of best launched model, or 0 if none
+ * totalAppeal = yourAppeal + sum of rivals
+ * share = yourAppeal / totalAppeal
+ * demand = 6 * (1.55 ^ (era - 1))
+ * revenuePerSec = demand * share * marketingRevenueMultiplier * achievementRevenueBonus
+ * Split: 65% subscriptions, 35% API
+ */
+export function calculateMarket(state: GameState): MarketBreakdown {
+  const playerAppeal = getPlayerAppeal(state);
+  const rivalAppeals: Record<string, number> = {};
+  let totalAppeal = playerAppeal;
+
+  for (const rival of state.rivals ?? []) {
+    const appeal = getRivalAppeal(rival);
+    rivalAppeals[rival.id] = appeal;
+    totalAppeal += appeal;
+  }
+
+  const playerShare = totalAppeal > 0 ? playerAppeal / totalAppeal : 0;
+  const demand = BASE_DEMAND * Math.pow(DEMAND_GROWTH_PER_ERA, (state.era || 1) - 1);
+  const revenuePerSec = demand * playerShare;
+  const subscriptionRevenue = revenuePerSec * SUBSCRIPTION_SHARE;
+  const apiRevenue = revenuePerSec * API_SHARE;
+
+  return {
+    playerAppeal,
+    rivalAppeals,
+    totalAppeal,
+    playerShare,
+    demand,
+    revenuePerSec,
+    subscriptionRevenue,
+    apiRevenue,
+  };
+}
+
+/**
+ * Real income per second for TopBar and Lab screen.
  */
 export function getIncomePerSec(state: GameState): { income: number; label: string } {
-  if (state.bestLaunchedModel) {
-    return {
-      income: state.bestLaunchedModel.score * 0.15,
-      label: 'Preview income',
-    };
-  }
+  const { revenuePerSec } = calculateMarket(state);
   return {
-    income: TEMP_STIPEND_PER_SEC,
-    label: 'Stipend (temporary)',
+    income: revenuePerSec,
+    label: 'Market revenue',
   };
 }
 
@@ -262,7 +365,8 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
 
 /**
  * Advance the simulation by deltaSeconds.
- * Capped at 1.0 second per tick to prevent hitches granting minutes.
+ * Ticks player training, player freshness/reputation decay, market revenue,
+ * and rival training/launch timers.
  */
 export function stepGame(
   state: GameState,
@@ -273,11 +377,89 @@ export function stepGame(
     return { state, modelFinished: false };
   }
 
-  const { income } = getIncomePerSec(state);
-  const incomeEarned = income * cappedDelta;
+  // 1. Decay player freshness (0.015 / 60 per sec, floor 0.40)
+  const freshnessDecayPerSec = FRESHNESS_DECAY_PER_MIN / 60;
+  let playerFreshness = state.playerFreshness ?? 1.0;
+  if (state.bestLaunchedModel) {
+    playerFreshness = Math.max(FRESHNESS_FLOOR, playerFreshness - freshnessDecayPerSec * cappedDelta);
+  }
+
+  // 2. Decay player reputation (0.2 / 60 per sec, floor 0, max 100)
+  const reputationDecayPerSec = REPUTATION_DECAY_PER_MIN / 60;
+  const reputation = Math.max(0, (state.reputation ?? 0) - reputationDecayPerSec * cappedDelta);
+
+  // 3. Step rivals
+  const updatedRivals: RivalState[] = (state.rivals ?? []).map((rival) => {
+    // Decay rival freshness
+    let rivalFreshness = Math.max(
+      FRESHNESS_FLOOR,
+      rival.freshness - freshnessDecayPerSec * cappedDelta
+    );
+    let bestScore = rival.bestScore;
+    let trainingJob = rival.trainingJob;
+    let idleTimer = rival.idleTimer;
+
+    if (trainingJob) {
+      const progress = trainingJob.progressSeconds + cappedDelta;
+      if (progress >= trainingJob.totalSeconds) {
+        // Rival finishes training and launches
+        rivalFreshness = 1.0; // resets to 1 on launch
+        const flatBonus = 1;
+        const randomFactor = 0.95 + Math.random() * 0.10;
+        const calculatedJump = Math.round(bestScore * rival.growthFactor * randomFactor + flatBonus);
+        const maxScore = Math.round(bestScore * 1.40); // cap single jump at +40%
+        const newScore = Math.min(maxScore, calculatedJump);
+        if (newScore > bestScore) {
+          bestScore = newScore;
+        }
+        trainingJob = null;
+        idleTimer = 5 + Math.random() * 10; // 5-15s idle before starting next
+      } else {
+        trainingJob = {
+          ...trainingJob,
+          progressSeconds: progress,
+        };
+      }
+    } else {
+      idleTimer -= cappedDelta;
+      if (idleTimer <= 0) {
+        // Pick preferred size
+        const sizes = rival.preferredSizes;
+        const pickedSize = sizes[Math.floor(Math.random() * sizes.length)] ?? 'tiny';
+        const baseSec = NPC_BASE_SECONDS[pickedSize] ?? 30;
+        const totalSeconds = baseSec * rival.speedMultiplier;
+        trainingJob = {
+          sizeId: pickedSize,
+          progressSeconds: 0,
+          totalSeconds,
+        };
+      }
+    }
+
+    return {
+      ...rival,
+      bestScore,
+      freshness: rivalFreshness,
+      trainingJob,
+      idleTimer,
+    };
+  });
+
+  // Intermediate state to compute real revenue
+  const interimState: GameState = {
+    ...state,
+    playerFreshness,
+    reputation,
+    rivals: updatedRivals,
+  };
+
+  // 4. Earn real market revenue
+  const { revenuePerSec } = calculateMarket(interimState);
+  const incomeEarned = revenuePerSec * cappedDelta;
   const newCash = state.cash + incomeEarned;
   const newLifetime = state.lifetimeCashEarned + incomeEarned;
 
+  // 5. Step player training
   let currentTraining = state.currentTraining;
   let readyModel = state.readyModel;
   let modelFinished = false;
@@ -286,7 +468,6 @@ export function stepGame(
   if (currentTraining) {
     const newProgress = currentTraining.progressSeconds + cappedDelta;
     if (newProgress >= currentTraining.totalSeconds) {
-      // Training complete: create ready-to-launch model
       modelFinished = true;
       readyModel = {
         id: currentTraining.id,
@@ -308,7 +489,7 @@ export function stepGame(
 
   return {
     state: {
-      ...state,
+      ...interimState,
       cash: newCash,
       lifetimeCashEarned: newLifetime,
       currentTraining,
@@ -322,23 +503,31 @@ export function stepGame(
 
 /**
  * Launch the ready model.
+ * Resets player freshness to 1.0, awards reputation (+2 + score/50, cap 100).
  */
 export function launchModel(state: GameState): GameState {
   if (!state.readyModel) return state;
 
+  const score = state.readyModel.score;
   const launched: TrainedModel = {
     ...state.readyModel,
     launched: true,
     launchedAt: Date.now(),
   };
 
-  const isNewBest = !state.bestLaunchedModel || launched.score > state.bestLaunchedModel.score;
+  const isNewBest = !state.bestLaunchedModel || score > state.bestLaunchedModel.score;
   const bestLaunchedModel = isNewBest ? launched : state.bestLaunchedModel;
+
+  // Reputation +2 + score / 50 on your launch, cap 100
+  const reputationGain = 2 + score / 50;
+  const newReputation = Math.min(100, (state.reputation ?? 0) + reputationGain);
 
   return {
     ...state,
     readyModel: null,
     launchedModels: [launched, ...state.launchedModels],
     bestLaunchedModel,
+    playerFreshness: 1.0, // Resets to 1 on launch
+    reputation: newReputation,
   };
 }

@@ -28,6 +28,28 @@ export interface TrainingJob {
   proposedName: string;
 }
 
+export interface RivalTrainingJob {
+  sizeId: ModelSizeId;
+  progressSeconds: number;
+  totalSeconds: number;
+}
+
+export interface RivalState {
+  id: string;
+  name: string;
+  shortCode: string; // Monogram, e.g. HA, PM, NG, VW
+  style: string;
+  bestScore: number;
+  freshness: number; // 0.40 to 1.0
+  stockPrice: number;
+  speedMultiplier: number;
+  growthFactor: number;
+  hypeMultiplier: number;
+  preferredSizes: ModelSizeId[];
+  trainingJob: RivalTrainingJob | null;
+  idleTimer: number;
+}
+
 export interface GameState {
   version: 1;
   savedAt: number;
@@ -48,4 +70,6 @@ export interface GameState {
   launchedModels: TrainedModel[];
   lifetimeCashEarned: number;
   lastTickTime: number;
+  playerFreshness: number;
+  rivals: RivalState[];
 }

@@ -171,7 +171,7 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
         {gameState.launchedModels.length === 0 ? (
           <Surface className="info-card">
             <p className="card-empty-text">
-              No models launched yet. Launch your first model to establish your lab on the board and start earning preview income.
+              No models launched yet. Launch your first model to establish your lab on the board and start earning market revenue.
             </p>
           </Surface>
         ) : (
