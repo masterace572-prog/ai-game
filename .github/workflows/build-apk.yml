@@ -1,0 +1,150 @@
+# Model Foundry — debug APK for personal install (not Play Store).
+# Pins checked October 2026:
+#   actions/checkout@v7, actions/setup-node@v7, actions/setup-java@v6
+#   android-actions/setup-android@v4, actions/upload-artifact@v7
+#   softprops/action-gh-release@v3
+#   Node 22, Temurin JDK 21, Android SDK 36, Capacitor 8 / Gradle assembleDebug
+#
+# Runs on every branch push (the Arena agent keeps pushing one working branch).
+# No pull_request trigger, so a push is not built twice.
+# Each successful push publishes a Release. Builds that are not main/master
+# are marked Pre-release so they still show on the Releases page, newest first.
+name: Build Android APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The first commit on main is only the plan docs. Skip the APK job then
+  # so that push stays green. Checked after checkout (hashFiles in a job
+  # if is unreliable and can skip real builds).
+  ready:
+    name: Check for the game
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: See if package.json exists yet
+        id: check
+        run: |
+          if [ -f package.json ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json yet. This push is only the plan docs. No APK this time."
+          fi
+
+  apk:
+    name: Build debug APK
+    needs: ready
+    if: needs.ready.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android 36 platform and build-tools
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Test and build the web game
+        run: |
+          npm test
+          npm run build
+
+      - name: Stop if the Android project was not committed
+        run: |
+          if [ ! -f android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "android/gradlew or the Gradle wrapper jar is missing."
+            echo "The agent must run: npx cap add android"
+            echo "Then commit the android folder, including the wrapper jar."
+            echo "Do not commit android/local.properties."
+            exit 1
+          fi
+
+      - name: Remove any machine-specific SDK path
+        run: rm -f android/local.properties
+
+      - name: Copy web build into the Android project
+        run: npx cap sync android
+
+      - name: Build the debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+
+      - name: Give the APK a friendly file name
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk ModelFoundry-debug.apk
+          ls -lh ModelFoundry-debug.apk
+
+      - name: Note the branch and short commit
+        id: meta
+        run: |
+          echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the APK as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ModelFoundry-debug-apk-${{ github.run_number }}
+          path: ModelFoundry-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # One new Release per run. Tag includes the run number and short
+      # commit, so it cannot collide. main/master is a normal release.
+      # Every other branch is a Pre-release, which still appears on the
+      # Releases page with the newest one at the top.
+      - name: Publish the APK on the Releases page
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: apk-${{ github.run_number }}-${{ steps.meta.outputs.short }}
+          target_commitish: ${{ github.sha }}
+          name: "Phone build ${{ github.run_number }} (${{ steps.meta.outputs.branch }} @ ${{ steps.meta.outputs.short }})"
+          prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+          make_latest: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'true' || 'false' }}
+          fail_on_unmatched_files: true
+          body: |
+            Personal debug build of Model Foundry. Not for the Play Store.
+            Branch: `${{ steps.meta.outputs.branch }}`
+            Commit: `${{ steps.meta.outputs.short }}` (`${{ github.sha }}`)
+            A Pre-release label means this build is from the working branch, not from main. It is still the right file to install while you are building the game.
+            On your phone, tap **ModelFoundry-debug.apk** below and install it.
+            If Android asks, allow installs from your browser. Play Protect may warn
+            about an unknown developer: this file was built from your own GitHub repo.
+          files: ModelFoundry-debug.apk
