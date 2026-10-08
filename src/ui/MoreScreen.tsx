@@ -4,6 +4,8 @@ import {
   FlaskConical,
   Info,
   ChevronRight,
+  Radio,
+  Award,
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Surface } from './Surface';
@@ -14,12 +16,16 @@ export interface MoreScreenProps {
   gameState: GameState;
   onNavigateToTeam: () => void;
   onNavigateToResearch: () => void;
+  onNavigateToEvents: () => void;
+  onNavigateToAchievements: () => void;
 }
 
 export const MoreScreen: React.FC<MoreScreenProps> = ({
   gameState,
   onNavigateToTeam,
   onNavigateToResearch,
+  onNavigateToEvents,
+  onNavigateToAchievements,
 }) => {
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
 
@@ -125,6 +131,100 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 GPUs, researchers, cooling, snacks, and data quality
+              </div>
+            </div>
+          </div>
+          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
+        </Surface>
+
+        {/* Events Log */}
+        <Surface
+          onClick={onNavigateToEvents}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToEvents();
+            }
+          }}
+          style={{
+            padding: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            minHeight: '64px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--surface-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon icon={Radio} size={20} color="var(--primary)" aria-hidden="true" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+                Events Log
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Chronicle of market shocks, viral demos, and lab incidents
+              </div>
+            </div>
+          </div>
+          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
+        </Surface>
+
+        {/* Achievements */}
+        <Surface
+          onClick={onNavigateToAchievements}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigateToAchievements();
+            }
+          }}
+          style={{
+            padding: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            minHeight: '64px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--surface-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon icon={Award} size={20} color="var(--primary)" aria-hidden="true" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+                Achievements
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Permanent milestones and persistent multiplier bonuses
               </div>
             </div>
           </div>

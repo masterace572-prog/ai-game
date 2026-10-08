@@ -132,6 +132,21 @@ export function createInitialState(
 
     // Research state
     researchOwned: {},
+
+    // Events state (Phase 7)
+    eventCooldownTimer: 90,
+    eventRollTimer: 60,
+    pendingEvent: null,
+    activeTimedEvents: [],
+    eventLogs: [],
+
+    // Achievements state (Phase 7)
+    achievements: {},
+    timesPrestiged: 0,
+
+    // Tutorial state (Phase 7)
+    tutorialStep: 1,
+    tutorialDone: false,
   };
 }
 
@@ -189,6 +204,21 @@ function parseState(raw: string | null): GameState | null {
         marketingCooldownSeconds: parsed.marketingCooldownSeconds ?? 0,
         payrollTight: parsed.payrollTight ?? false,
         researchOwned: parsed.researchOwned ?? {},
+
+        // Events
+        eventCooldownTimer: parsed.eventCooldownTimer ?? 90,
+        eventRollTimer: parsed.eventRollTimer ?? 60,
+        pendingEvent: parsed.pendingEvent ?? null,
+        activeTimedEvents: Array.isArray(parsed.activeTimedEvents) ? parsed.activeTimedEvents : [],
+        eventLogs: Array.isArray(parsed.eventLogs) ? parsed.eventLogs : [],
+
+        // Achievements
+        achievements: parsed.achievements ?? {},
+        timesPrestiged: parsed.timesPrestiged ?? 0,
+
+        // Tutorial: existing saves not forced back into tutorial
+        tutorialStep: parsed.tutorialStep ?? 6,
+        tutorialDone: parsed.tutorialDone !== undefined ? parsed.tutorialDone : true,
       } as GameState;
     }
   } catch {

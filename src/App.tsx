@@ -19,7 +19,12 @@ import { MarketScreen } from './ui/MarketScreen';
 import { InvestScreen } from './ui/InvestScreen';
 import { TeamScreen } from './ui/TeamScreen';
 import { ResearchScreen } from './ui/ResearchScreen';
+import { EventsLogScreen } from './ui/EventsLogScreen';
+import { AchievementsScreen } from './ui/AchievementsScreen';
 import { MoreScreen } from './ui/MoreScreen';
+import { EventModal } from './ui/EventModal';
+import { TutorialOverlay } from './ui/TutorialOverlay';
+import { Toast } from './ui/Toast';
 import { loadGameState, saveGameState } from './game/save';
 import {
   stepGame,
@@ -43,12 +48,14 @@ import {
   startMarketingCampaign,
   buyResearchNode,
   getTotalScoreMultiplier,
+  resolveEvent,
 } from './game/logic';
 import {
   MODEL_SIZES,
   DEFAULT_LAB_NAME,
+  ACHIEVEMENTS,
 } from './game/balance';
-import type { GameState, ModelSizeId, FundingRoundId, ResearchNodeId } from './game/types';
+import type { GameState, ModelSizeId, FundingRoundId, ResearchNodeId, AchievementId } from './game/types';
 import './styles.css';
 
 export const App: React.FC = () => {
@@ -57,8 +64,9 @@ export const App: React.FC = () => {
     return loaded.state;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research'>('lab');
+  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements'>('lab');
   const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
@@ -86,16 +94,33 @@ export const App: React.FC = () => {
         lastTickTimeRef.current = now;
 
         setGameState((prevState) => {
-          const { state: nextState, modelFinished } = stepGame(prevState, deltaSeconds);
+          const { state: nextState, modelFinished, newlyUnlockedAchievements } = stepGame(prevState, deltaSeconds);
+
+          if (newlyUnlockedAchievements && newlyUnlockedAchievements.length > 0) {
+            const firstId: AchievementId = newlyUnlockedAchievements[0];
+            const def = ACHIEVEMENTS[firstId];
+            if (def) {
+              setToastMessage(`Achievement Unlocked: ${def.name} (${def.bonusText})`);
+            }
+          }
+
+          // Auto-advance tutorial if model finished during step 3
+          let finalState = nextState;
+          if (modelFinished && !finalState.tutorialDone && finalState.tutorialStep === 3) {
+            finalState = {
+              ...finalState,
+              tutorialStep: 4,
+            };
+          }
 
           // Auto-save every 5 seconds or immediately when model finishes
           const timeSinceSave = now - lastSaveTimeRef.current;
           if (modelFinished || timeSinceSave >= 5000) {
-            saveGameState(nextState);
+            saveGameState(finalState);
             lastSaveTimeRef.current = now;
           }
 
-          return nextState;
+          return finalState;
         });
       }, 250);
     };
@@ -143,25 +168,78 @@ export const App: React.FC = () => {
       ...gameStateRef.current,
       labName: finalName,
       labNameConfirmed: true,
+      tutorialStep: Math.max(2, gameStateRef.current.tutorialStep ?? 1),
     };
     setGameState(nextState);
     triggerSave(nextState);
   };
 
   const handleTrainModel = (sizeId: ModelSizeId) => {
-    const nextState = startTraining(gameStateRef.current, sizeId);
+    let nextState = startTraining(gameStateRef.current, sizeId);
     if (nextState !== gameStateRef.current) {
+      if (!nextState.tutorialDone && nextState.tutorialStep === 2) {
+        nextState = {
+          ...nextState,
+          tutorialStep: 3,
+        };
+      }
       setGameState(nextState);
       triggerSave(nextState);
     }
   };
 
   const handleLaunch = () => {
-    const nextState = launchModel(gameStateRef.current);
+    let nextState = launchModel(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
+      if (!nextState.tutorialDone && nextState.tutorialStep === 4) {
+        nextState = {
+          ...nextState,
+          tutorialStep: 5,
+        };
+      }
       setGameState(nextState);
       triggerSave(nextState);
     }
+  };
+
+  const handleResolveEvent = (choiceIndex: 0 | 1) => {
+    const nextState = resolveEvent(gameStateRef.current, choiceIndex);
+    setGameState(nextState);
+    triggerSave(nextState);
+  };
+
+  const handleTutorialNext = () => {
+    const currentStep = gameState.tutorialStep ?? 1;
+    if (currentStep >= 6) {
+      const nextState: GameState = {
+        ...gameStateRef.current,
+        tutorialDone: true,
+      };
+      setGameState(nextState);
+      triggerSave(nextState);
+    } else {
+      const nextStep = currentStep + 1;
+      if (nextStep === 5) {
+        setActiveTab('market');
+      } else if (nextStep === 6) {
+        setActiveTab('team');
+      }
+      const nextState: GameState = {
+        ...gameStateRef.current,
+        tutorialStep: nextStep,
+      };
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleTutorialSkip = () => {
+    const nextState: GameState = {
+      ...gameStateRef.current,
+      tutorialDone: true,
+    };
+    setGameState(nextState);
+    triggerSave(nextState);
   };
 
   // Economy Actions
@@ -580,14 +658,53 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'events' && (
+          <EventsLogScreen
+            gameState={gameState}
+            onBackToMore={() => setActiveTab('more')}
+          />
+        )}
+
+        {activeTab === 'achievements' && (
+          <AchievementsScreen
+            gameState={gameState}
+            onBackToMore={() => setActiveTab('more')}
+          />
+        )}
+
         {activeTab === 'more' && (
           <MoreScreen
             gameState={gameState}
             onNavigateToTeam={() => setActiveTab('team')}
             onNavigateToResearch={() => setActiveTab('research')}
+            onNavigateToEvents={() => setActiveTab('events')}
+            onNavigateToAchievements={() => setActiveTab('achievements')}
           />
         )}
       </main>
+
+      {/* Tutorial Overlay (brand-new saves only, Skip always visible) */}
+      {!gameState.tutorialDone && gameState.labNameConfirmed && (
+        <TutorialOverlay
+          step={gameState.tutorialStep ?? 1}
+          onNext={handleTutorialNext}
+          onSkip={handleTutorialSkip}
+        />
+      )}
+
+      {/* Event Modal dialog when an event occurs */}
+      <EventModal
+        pendingEvent={gameState.pendingEvent}
+        onResolve={handleResolveEvent}
+      />
+
+      {/* Toast notification for achievement unlock */}
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          onDismiss={() => setToastMessage(null)}
+        />
+      )}
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />

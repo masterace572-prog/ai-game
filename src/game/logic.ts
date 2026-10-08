@@ -26,6 +26,14 @@ import {
   FUNDING_ROUNDS,
   RESEARCH_NODES,
   RESEARCH_NODE_ORDER,
+  EVENT_CHECK_INTERVAL,
+  EVENT_CHANCE,
+  EVENT_COOLDOWN,
+  EVENT_TIMED_DURATION,
+  EVENTS,
+  ALL_EVENT_IDS,
+  ACHIEVEMENTS,
+  ALL_ACHIEVEMENT_IDS,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -38,6 +46,11 @@ import type {
   TrainedModel,
   TrainingJob,
   ResearchNodeId,
+  EventId,
+  AchievementId,
+  ActiveTimedEvent,
+  EventLogEntry,
+  PendingEvent,
 } from './types';
 
 export {
@@ -51,6 +64,10 @@ export {
   STOCK_SELL_FEE,
   RESEARCH_NODES,
   RESEARCH_NODE_ORDER,
+  EVENTS,
+  ACHIEVEMENTS,
+  ALL_EVENT_IDS,
+  ALL_ACHIEVEMENT_IDS,
 };
 
 /**
@@ -68,9 +85,22 @@ export const NPC_BASE_SECONDS: Record<ModelSizeId, number> = {
 
 /**
  * Usable GPUs is the smaller of GPUs owned and power cap.
+ * If chip outage event is active, count as half, rounded down, minimum 1.
  */
-export function getUsableGpus(gpusOwned: number, powerCap: number): number {
-  return Math.max(1, Math.min(gpusOwned, powerCap));
+export function getUsableGpus(gpusOwned: number, powerCap: number, hasOutage: boolean = false): number {
+  const baseUsable = Math.max(1, Math.min(gpusOwned, powerCap));
+  return hasOutage ? Math.max(1, Math.floor(baseUsable / 2)) : baseUsable;
+}
+
+export function getEffectivePowerCap(state: GameState): number {
+  const hasBrownout = (state.activeTimedEvents ?? []).some((e) => e.id === 'brownout');
+  return hasBrownout ? Math.max(1, state.powerCap - 2) : state.powerCap;
+}
+
+export function getEffectiveUsableGpus(state: GameState): number {
+  const effectiveCap = getEffectivePowerCap(state);
+  const hasOutage = (state.activeTimedEvents ?? []).some((e) => e.id === 'outage');
+  return getUsableGpus(state.gpus, effectiveCap, hasOutage);
 }
 
 /**
@@ -321,7 +351,9 @@ export function calculateAppeal(
  */
 export function getPlayerAppeal(state: GameState): number {
   if (!state.bestLaunchedModel) return 0;
-  const hype = state.marketingActiveSeconds > 0 ? MARKETING_HYPE_BOOST : 1.0;
+  const eventHype = (state.activeTimedEvents ?? []).some((e) => e.id === 'hype') ? 1.25 : 1.0;
+  const marketingHype = state.marketingActiveSeconds > 0 ? MARKETING_HYPE_BOOST : 1.0;
+  const hype = Math.max(marketingHype, eventHype);
   return calculateAppeal(
     state.bestLaunchedModel.score,
     state.playerFreshness ?? 1.0,
@@ -332,13 +364,18 @@ export function getPlayerAppeal(state: GameState): number {
 
 /**
  * Rival appeal: score * freshness * (1 + 0/250) * hypeMultiplier.
+ * If stumble event is active for this rival, appeal is multiplied by 0.50.
  */
-export function getRivalAppeal(rival: RivalState): number {
+export function getRivalAppeal(rival: RivalState, state?: GameState): number {
+  const stumble = state?.activeTimedEvents?.find(
+    (e) => e.id === 'stumble' && e.targetRivalId === rival.id
+  );
+  const stumbleMult = stumble ? 0.50 : 1.0;
   return calculateAppeal(
     rival.bestScore,
     rival.freshness,
     0,
-    rival.hypeMultiplier
+    rival.hypeMultiplier * stumbleMult
   );
 }
 
@@ -359,7 +396,7 @@ export interface MarketBreakdown {
  * totalAppeal = yourAppeal + sum of rivals
  * share = yourAppeal / totalAppeal
  * demand = 6 * (1.55 ^ (era - 1))
- * revenuePerSec = demand * share * marketingRevenueMultiplier * achievementRevenueBonus
+ * revenuePerSec = demand * share * brandMultiplier * achievementRevenueBonus * rulesMultiplier
  * Split: 65% subscriptions, 35% API
  */
 export function calculateMarket(state: GameState): MarketBreakdown {
@@ -368,7 +405,7 @@ export function calculateMarket(state: GameState): MarketBreakdown {
   let totalAppeal = playerAppeal;
 
   for (const rival of state.rivals ?? []) {
-    const appeal = getRivalAppeal(rival);
+    const appeal = getRivalAppeal(rival, state);
     rivalAppeals[rival.id] = appeal;
     totalAppeal += appeal;
   }
@@ -376,7 +413,9 @@ export function calculateMarket(state: GameState): MarketBreakdown {
   const playerShare = totalAppeal > 0 ? playerAppeal / totalAppeal : 0;
   const demand = BASE_DEMAND * Math.pow(DEMAND_GROWTH_PER_ERA, (state.era || 1) - 1);
   const brandMultiplier = state.researchOwned?.['brand'] ? 1.10 : 1.0;
-  const revenuePerSec = demand * playerShare * brandMultiplier;
+  const achRevenueMultiplier = getAchievementRevenueMultiplier(state);
+  const rulesMultiplier = (state.activeTimedEvents ?? []).some((e) => e.id === 'rules') ? 0.80 : 1.0;
+  const revenuePerSec = demand * playerShare * brandMultiplier * achRevenueMultiplier * rulesMultiplier;
   const subscriptionRevenue = revenuePerSec * SUBSCRIPTION_SHARE;
   const apiRevenue = revenuePerSec * API_SHARE;
 
@@ -572,6 +611,10 @@ export function canTakeFunding(
   fundingId: 'seed' | 'series-a' | 'series-b',
   state: GameState
 ): { canTake: boolean; reason?: string } {
+  if ((state.activeTimedEvents ?? []).some((e) => e.id === 'rules')) {
+    return { canTake: false, reason: 'Funding paused by draft rules' };
+  }
+
   if (state.fundingTaken?.[fundingId]) {
     return { canTake: false, reason: 'Already taken this era' };
   }
@@ -635,8 +678,327 @@ export function getResearchScoreMultiplier(state: GameState): number {
   return mult;
 }
 
+export function getAchievementScoreMultiplier(state: GameState): number {
+  let mult = 1.0;
+  if (state.achievements?.['first-spark']) mult *= 1.01;
+  if (state.achievements?.['new-era']) mult *= 1.01;
+  return mult;
+}
+
+export function getAchievementRevenueMultiplier(state: GameState): number {
+  let mult = 1.0;
+  if (state.achievements?.['on-the-board']) mult *= 1.01;
+  if (state.achievements?.['upset']) mult *= 1.01;
+  if (state.achievements?.['market-leader']) mult *= 1.02;
+  if (state.achievements?.['frontier']) mult *= 1.02;
+  return mult;
+}
+
 export function getTotalScoreMultiplier(state: GameState): number {
-  return getResearchScoreMultiplier(state) * getDataCenterScoreMultiplier(state.dataCentersOwned ?? 0);
+  return (
+    getResearchScoreMultiplier(state) *
+    getDataCenterScoreMultiplier(state.dataCentersOwned ?? 0) *
+    getAchievementScoreMultiplier(state)
+  );
+}
+
+export function hasActiveEvent(state: GameState, eventId: EventId): boolean {
+  return (state.activeTimedEvents ?? []).some((e) => e.id === eventId);
+}
+
+export function checkAchievements(state: GameState): {
+  nextState: GameState;
+  newlyUnlocked: AchievementId[];
+} {
+  const current = state.achievements ?? {};
+  const newlyUnlocked: AchievementId[] = [];
+  const nextAchievements = { ...current };
+
+  const helix = state.rivals?.find((r) => r.id === 'helix');
+  const market = calculateMarket(state);
+
+  const checks: Record<AchievementId, boolean> = {
+    'first-spark': state.launchedModels.length > 0 || state.readyModel !== null || (state.usedModelNames?.length ?? 0) > 0,
+    'on-the-board': state.launchedModels.length > 0,
+    'pocket-lab': state.gpus >= 5,
+    'full-house': state.researchers >= 5,
+    'data-hoarder': state.dataQuality >= 60,
+    'upset': (state.bestLaunchedModel?.score ?? 0) > (helix?.bestScore ?? 18),
+    'market-leader': market.playerShare >= 0.40,
+    'millionaire': state.cash >= 1000000,
+    'public-company': Boolean(state.fundingTaken?.['series-a']),
+    'night-shift': Boolean(current['night-shift']),
+    'new-era': (state.timesPrestiged ?? 0) >= 1,
+    'frontier': state.launchedModels.some((m) => m.sizeId === 'frontier'),
+  };
+
+  for (const [idStr, condition] of Object.entries(checks)) {
+    const id = idStr as AchievementId;
+    if (condition && !current[id]) {
+      nextAchievements[id] = true;
+      newlyUnlocked.push(id);
+    }
+  }
+
+  if (newlyUnlocked.length === 0) {
+    return { nextState: state, newlyUnlocked: [] };
+  }
+
+  return {
+    nextState: {
+      ...state,
+      achievements: nextAchievements,
+    },
+    newlyUnlocked,
+  };
+}
+
+// --- Events System (Phase 7) ---
+
+export function canRollEvent(state: GameState): boolean {
+  if (!state.tutorialDone) return false;
+  if (state.pendingEvent !== null) return false;
+  if ((state.eventCooldownTimer ?? 0) > 0) return false;
+  return true;
+}
+
+export function rollEvent(
+  state: GameState,
+  forcedRoll?: number,
+  forcedEventId?: EventId
+): { nextState: GameState; eventFired: boolean; eventId?: EventId } {
+  if (!canRollEvent(state)) {
+    return { nextState: state, eventFired: false };
+  }
+
+  const roll = forcedRoll !== undefined ? forcedRoll : Math.random();
+  if (roll >= EVENT_CHANCE) {
+    return { nextState: state, eventFired: false };
+  }
+
+  const eventId =
+    forcedEventId ??
+    ALL_EVENT_IDS[Math.floor(Math.random() * ALL_EVENT_IDS.length)];
+
+  const def = EVENTS[eventId];
+  let title = def.title;
+  let description = def.description;
+  let isChoice = Boolean(def.isChoice);
+  let choice1Label: string | undefined;
+  let choice2Label: string | undefined;
+  let rivalId: string | undefined;
+
+  switch (eventId) {
+    case 'poach':
+      choice1Label = 'Counteroffer ($5,000)';
+      choice2Label = 'Let them walk';
+      break;
+    case 'investor':
+      if ((state.reputation ?? 0) >= 20) {
+        choice1Label = 'Accept ($15,000)';
+        choice2Label = 'Decline';
+      } else {
+        isChoice = false;
+        description =
+          'An investor scout stopped by, but passed on your early-stage lab. Build reputation ≥ 20 to attract venture capital.';
+      }
+      break;
+    case 'stumble':
+      if (state.rivals && state.rivals.length > 0) {
+        const target = state.rivals[Math.floor(Math.random() * state.rivals.length)];
+        rivalId = target.id;
+        description = `${target.name} suffered a public model hallucination incident. Their market appeal is halved for 180s.`;
+      }
+      break;
+    default:
+      break;
+  }
+
+  const pending: PendingEvent = {
+    id: eventId,
+    title,
+    description,
+    isChoice,
+    choice1Label,
+    choice2Label,
+    rivalId,
+  };
+
+  return {
+    nextState: {
+      ...state,
+      pendingEvent: pending,
+      eventRollTimer: EVENT_CHECK_INTERVAL,
+    },
+    eventFired: true,
+    eventId,
+  };
+}
+
+export function resolveEvent(
+  state: GameState,
+  choiceIndex: 0 | 1 = 0
+): GameState {
+  const pending = state.pendingEvent;
+  if (!pending) return state;
+
+  const eventId = pending.id;
+  let nextCash = state.cash;
+  let nextResearchers = state.researchers;
+  let nextDataQuality = state.dataQuality;
+  let nextReputation = state.reputation ?? 0;
+  let nextSalaryMult = state.salaryMultiplier ?? 1.0;
+  let nextBestModel = state.bestLaunchedModel ? { ...state.bestLaunchedModel } : null;
+  const nextActiveTimedEvents = [...(state.activeTimedEvents ?? [])];
+  let outcomeText = '';
+
+  switch (eventId) {
+    case 'hype':
+      nextReputation = Math.min(100, nextReputation + 8);
+      nextActiveTimedEvents.push({
+        id: 'hype',
+        title: 'Hype wave',
+        remainingSeconds: EVENT_TIMED_DURATION,
+      });
+      outcomeText = 'Hype wave: +8 reputation and hype boost active for 180s.';
+      break;
+
+    case 'outage':
+      nextActiveTimedEvents.push({
+        id: 'outage',
+        title: 'Chip outage',
+        remainingSeconds: EVENT_TIMED_DURATION,
+      });
+      outcomeText = 'Chip outage: usable GPUs halved for 180s.';
+      break;
+
+    case 'rules':
+      nextActiveTimedEvents.push({
+        id: 'rules',
+        title: 'Draft rules',
+        remainingSeconds: EVENT_TIMED_DURATION,
+      });
+      outcomeText = 'Draft rules: revenue −20% and funding rounds paused for 180s.';
+      break;
+
+    case 'viral': {
+      const market = calculateMarket(state);
+      const currentRev = market.revenuePerSec;
+      const cashBonus = 20 * currentRev * 30;
+      nextCash += cashBonus;
+      nextReputation = Math.min(100, nextReputation + 10);
+      outcomeText = `Viral demo: earned $${Math.round(cashBonus).toLocaleString()} cash and +10 reputation.`;
+      break;
+    }
+
+    case 'leak':
+      nextDataQuality = Math.max(0, nextDataQuality - 5);
+      nextReputation = Math.max(0, nextReputation - 8);
+      outcomeText = 'Data leak: data quality −5 and reputation −8.';
+      break;
+
+    case 'poach':
+      if (choiceIndex === 0) {
+        if (nextCash >= 5000) {
+          nextCash -= 5000;
+          outcomeText = 'Recruiter calls: paid $5,000 retention bonus to keep research talent.';
+        } else {
+          if (nextResearchers >= 2) {
+            nextResearchers -= 1;
+            outcomeText = 'Recruiter calls: unable to pay $5,000; 1 researcher departed.';
+          } else {
+            outcomeText = 'Recruiter calls: researcher decided to stay despite low cash.';
+          }
+        }
+      } else {
+        if (nextResearchers >= 2) {
+          nextResearchers -= 1;
+          outcomeText = 'Recruiter calls: declined to counteroffer; 1 researcher departed.';
+        } else {
+          outcomeText = 'Recruiter calls: lead researcher decided to stay despite rival interest.';
+        }
+      }
+      break;
+
+    case 'brownout':
+      nextActiveTimedEvents.push({
+        id: 'brownout',
+        title: 'Brownout',
+        remainingSeconds: EVENT_TIMED_DURATION,
+      });
+      outcomeText = 'Brownout: power cap reduced by 2 for 180s.';
+      break;
+
+    case 'surprise':
+      if (nextBestModel) {
+        const factor = Math.random() < 0.5 ? 1.08 : 0.92;
+        const newScore = Math.max(1, Math.round(nextBestModel.score * factor));
+        outcomeText = `Surprise benchmark: ${nextBestModel.name} score adjusted from ${nextBestModel.score} to ${newScore} (${factor > 1 ? '+8%' : '−8%'}).`;
+        nextBestModel.score = newScore;
+      } else {
+        outcomeText = 'Surprise benchmark: no public model to test.';
+      }
+      break;
+
+    case 'investor':
+      if ((state.reputation ?? 0) >= 20 && choiceIndex === 0) {
+        nextCash += 15000;
+        nextSalaryMult *= 1.05;
+        outcomeText = 'Investor visit: accepted $15,000 cash; researcher salary expectations ×1.05.';
+      } else {
+        outcomeText = 'Investor visit: declined investor proposition.';
+      }
+      break;
+
+    case 'stumble': {
+      const targetId = pending.rivalId || state.rivals?.[0]?.id;
+      const targetRival = state.rivals?.find((r) => r.id === targetId);
+      if (targetId) {
+        nextActiveTimedEvents.push({
+          id: 'stumble',
+          title: 'Rival stumble',
+          remainingSeconds: EVENT_TIMED_DURATION,
+          targetRivalId: targetId,
+        });
+      }
+      outcomeText = `Rival stumble: ${targetRival?.name ?? 'Rival'} appeal cut by 50% for 180s.`;
+      break;
+    }
+
+    case 'dataset':
+      nextDataQuality = Math.min(100, nextDataQuality + 4);
+      outcomeText = 'Community dataset: data quality increased by +4.';
+      break;
+
+    case 'quiet':
+      nextCash += 500;
+      outcomeText = 'Quiet week: collected +$500 in cloud optimization savings.';
+      break;
+  }
+
+  const logEntry: EventLogEntry = {
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    eventId,
+    title: pending.title,
+    outcomeText,
+    timestamp: Date.now(),
+  };
+
+  const nextLogs = [logEntry, ...(state.eventLogs ?? [])].slice(0, 30);
+
+  return {
+    ...state,
+    cash: nextCash,
+    researchers: nextResearchers,
+    dataQuality: nextDataQuality,
+    reputation: nextReputation,
+    salaryMultiplier: nextSalaryMult,
+    bestLaunchedModel: nextBestModel,
+    activeTimedEvents: nextActiveTimedEvents,
+    pendingEvent: null,
+    eventCooldownTimer: EVENT_COOLDOWN,
+    eventLogs: nextLogs,
+  };
 }
 
 export function canBuyResearchNode(
@@ -698,7 +1060,7 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
   if (!check.canTrain) return state;
 
   const modelDef = MODEL_SIZES[sizeId];
-  const usable = getUsableGpus(state.gpus, state.powerCap);
+  const usable = getEffectiveUsableGpus(state);
   const timeMult = state.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
   const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable, timeMult);
   const archMult = getTotalScoreMultiplier(state);
@@ -735,7 +1097,11 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
 export function stepGame(
   state: GameState,
   deltaSeconds: number
-): { state: GameState; modelFinished: boolean } {
+): {
+  state: GameState;
+  modelFinished: boolean;
+  newlyUnlockedAchievements?: AchievementId[];
+} {
   const cappedDelta = Math.min(Math.max(deltaSeconds, 0), 1.0);
   if (cappedDelta <= 0) {
     return { state, modelFinished: false };
@@ -828,6 +1194,32 @@ export function stepGame(
     };
   });
 
+  // Step active timed events (decrement remainingSeconds)
+  const updatedTimedEvents: ActiveTimedEvent[] = (state.activeTimedEvents ?? [])
+    .map((ev) => ({ ...ev, remainingSeconds: ev.remainingSeconds - cappedDelta }))
+    .filter((ev) => ev.remainingSeconds > 0);
+
+  // Step event cooldown and roll timer
+  const eventCooldownTimer = Math.max(0, (state.eventCooldownTimer ?? 0) - cappedDelta);
+  let eventRollTimer = (state.eventRollTimer ?? EVENT_CHECK_INTERVAL) - cappedDelta;
+  let pendingEvent = state.pendingEvent;
+
+  if (eventRollTimer <= 0) {
+    eventRollTimer = EVENT_CHECK_INTERVAL;
+    const testState = {
+      ...state,
+      activeTimedEvents: updatedTimedEvents,
+      eventCooldownTimer,
+      pendingEvent: null,
+    };
+    if (canRollEvent(testState)) {
+      const rolled = rollEvent(testState);
+      if (rolled.eventFired && rolled.nextState.pendingEvent) {
+        pendingEvent = rolled.nextState.pendingEvent;
+      }
+    }
+  }
+
   // Interim state for market calculation
   const interimState: GameState = {
     ...state,
@@ -836,6 +1228,7 @@ export function stepGame(
     marketingActiveSeconds,
     marketingCooldownSeconds,
     rivals: updatedRivals,
+    activeTimedEvents: updatedTimedEvents,
   };
 
   // 6. Revenue and salaries/upkeep drain
@@ -885,19 +1278,28 @@ export function stepGame(
     }
   }
 
+  const rawNextState: GameState = {
+    ...interimState,
+    cash: newCash,
+    lifetimeCashEarned: newLifetime,
+    currentTraining,
+    readyModel,
+    usedModelNames,
+    stockPriceTimer,
+    payrollTight,
+    activeTimedEvents: updatedTimedEvents,
+    eventCooldownTimer,
+    eventRollTimer,
+    pendingEvent,
+    lastTickTime: Date.now(),
+  };
+
+  const { nextState: finalizedState, newlyUnlocked } = checkAchievements(rawNextState);
+
   return {
-    state: {
-      ...interimState,
-      cash: newCash,
-      lifetimeCashEarned: newLifetime,
-      currentTraining,
-      readyModel,
-      usedModelNames,
-      stockPriceTimer,
-      payrollTight,
-      lastTickTime: Date.now(),
-    },
+    state: finalizedState,
     modelFinished,
+    newlyUnlockedAchievements: newlyUnlocked,
   };
 }
 
@@ -921,7 +1323,7 @@ export function launchModel(state: GameState): GameState {
   const reputationGain = 2 + score / 50;
   const newReputation = Math.min(100, (state.reputation ?? 0) + reputationGain);
 
-  return {
+  const updated: GameState = {
     ...state,
     readyModel: null,
     launchedModels: [launched, ...state.launchedModels],
@@ -929,4 +1331,6 @@ export function launchModel(state: GameState): GameState {
     playerFreshness: 1.0,
     reputation: newReputation,
   };
+
+  return checkAchievements(updated).nextState;
 }

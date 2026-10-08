@@ -25,6 +25,11 @@ import {
   canBuyResearchNode,
   buyResearchNode,
   getResearchScoreMultiplier,
+  canRollEvent,
+  rollEvent,
+  resolveEvent,
+  checkAchievements,
+  getAchievementRevenueMultiplier,
 } from './logic';
 import { MODEL_SIZES, FRESHNESS_FLOOR } from './balance';
 import * as balanceModule from './balance';
@@ -506,5 +511,108 @@ describe('Phase 6: Research Tree and Frontier Unlocks', () => {
     const baseCost = getResearcherPrice(2, false);
     const recruiterCost = getResearcherPrice(2, true);
     expect(recruiterCost).toBe(Math.round(baseCost * 0.85));
+  });
+});
+
+describe('Phase 7: Events, Achievements, and Tutorial', () => {
+  it('poach does nothing harmful with 1 researcher', () => {
+    let state = createInitialState('Solo Lab', true);
+    state.tutorialDone = true;
+    state.eventCooldownTimer = 0;
+    state.researchers = 1;
+    state.cash = 25000;
+
+    // Trigger poach event
+    const rolled = rollEvent(state, 0.05, 'poach');
+    expect(rolled.eventFired).toBe(true);
+    expect(rolled.nextState.pendingEvent?.id).toBe('poach');
+
+    // Choice 1: "Let them walk"
+    const resolved = resolveEvent(rolled.nextState, 1);
+    expect(resolved.researchers).toBe(1);
+    expect(resolved.cash).toBe(25000);
+    expect(resolved.pendingEvent).toBeNull();
+    expect(resolved.eventCooldownTimer).toBe(90);
+  });
+
+  it('viral cash uses the formula', () => {
+    let state = createInitialState('Viral Lab', true);
+    state.tutorialDone = true;
+    state.eventCooldownTimer = 0;
+    state.cash = 10000;
+    state.reputation = 5;
+    state.bestLaunchedModel = {
+      id: 'viral-model',
+      name: 'Viral Spark',
+      sizeId: 'medium',
+      score: 50,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+
+    const market = calculateMarket(state);
+    const expectedRevenue = market.revenuePerSec;
+    expect(expectedRevenue).toBeGreaterThan(0);
+
+    const expectedCashBonus = 20 * expectedRevenue * 30;
+
+    const rolled = rollEvent(state, 0.05, 'viral');
+    expect(rolled.eventFired).toBe(true);
+    const resolved = resolveEvent(rolled.nextState, 0);
+
+    expect(resolved.cash).toBeCloseTo(10000 + expectedCashBonus, 4);
+    expect(resolved.reputation).toBe(15); // 5 + 10
+  });
+
+  it('market-leader bonus is 1.02 only after the rule is met', () => {
+    let state = createInitialState('Share Lab', true);
+    state.tutorialDone = true;
+    // Mark previous milestones as already known
+    state.achievements = {
+      'on-the-board': true,
+      'upset': true,
+    };
+    const multBefore = getAchievementRevenueMultiplier(state);
+    expect(state.achievements['market-leader']).toBeUndefined();
+
+    // Player share under 40%
+    const check1 = checkAchievements(state);
+    expect(check1.nextState.achievements?.['market-leader']).toBeUndefined();
+    expect(getAchievementRevenueMultiplier(check1.nextState)).toBe(multBefore);
+
+    // Launch a powerhouse model that secures > 40% market share
+    const beastModel: TrainedModel = {
+      id: 'beast-model',
+      name: 'Beast 1',
+      sizeId: 'huge',
+      score: 500,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+    state.bestLaunchedModel = beastModel;
+    state.launchedModels = [beastModel];
+
+    const market = calculateMarket(state);
+    expect(market.playerShare).toBeGreaterThanOrEqual(0.40);
+
+    const check2 = checkAchievements(state);
+    expect(check2.nextState.achievements?.['market-leader']).toBe(true);
+    // Market leader provides a 1.02 multiplier on top of baseline
+    const multAfter = getAchievementRevenueMultiplier(check2.nextState);
+    expect(multAfter).toBeCloseTo(multBefore * 1.02, 5);
+  });
+
+  it('an event does not fire when the cooldown is active (pure function is fine)', () => {
+    let state = createInitialState('Cooldown Lab', true);
+    state.tutorialDone = true;
+    state.eventCooldownTimer = 45; // 45 seconds remaining on cooldown
+
+    expect(canRollEvent(state)).toBe(false);
+
+    const rolled = rollEvent(state, 0.01, 'hype');
+    expect(rolled.eventFired).toBe(false);
+    expect(rolled.nextState.pendingEvent).toBeNull();
   });
 });

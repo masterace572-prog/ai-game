@@ -186,6 +186,233 @@ export const RESEARCH_NODE_ORDER: ResearchNodeId[] = [
   'agent-harness',
 ];
 
+// Events system constants and definitions from GAME_DESIGN.md
+export const EVENT_CHECK_INTERVAL = 60; // 60s real time
+export const EVENT_CHANCE = 0.25; // 25% chance
+export const EVENT_COOLDOWN = 90; // 90s cooldown after any event
+export const EVENT_TIMED_DURATION = 180; // 180s duration for timed events
+
+export type EventId =
+  | 'hype'
+  | 'outage'
+  | 'rules'
+  | 'viral'
+  | 'leak'
+  | 'poach'
+  | 'brownout'
+  | 'surprise'
+  | 'investor'
+  | 'stumble'
+  | 'dataset'
+  | 'quiet';
+
+export interface EventDefinition {
+  id: EventId;
+  title: string;
+  description: string;
+  isChoice?: boolean;
+}
+
+export const EVENTS: Record<EventId, EventDefinition> = {
+  hype: {
+    id: 'hype',
+    title: 'Hype wave',
+    description: 'An influential tech newsletter features your lab. For 180s, hype is at least 1.25 and reputation gains +8.',
+  },
+  outage: {
+    id: 'outage',
+    title: 'Chip outage',
+    description: 'Cloud provider hardware supply chain disruption. For 180s, usable GPUs count as half (min 1).',
+  },
+  rules: {
+    id: 'rules',
+    title: 'Draft rules',
+    description: 'Regulatory compliance review launched. For 180s, revenue is reduced by 20% and venture funding is paused.',
+  },
+  viral: {
+    id: 'viral',
+    title: 'Viral demo',
+    description: 'An interactive demo built on your model spreads across social networks, generating immediate revenue and reputation.',
+  },
+  leak: {
+    id: 'leak',
+    title: 'Data leak',
+    description: 'A configuration error exposed an internal training bucket. Data quality drops by 5 and reputation drops by 8.',
+  },
+  poach: {
+    id: 'poach',
+    title: 'Recruiter calls',
+    description: 'A well-funded rival is courting your talent with inflated equity offers.',
+    isChoice: true,
+  },
+  brownout: {
+    id: 'brownout',
+    title: 'Brownout',
+    description: 'Substation maintenance forces local power reduction. Power cap is reduced by 2 for 180s (min 1).',
+  },
+  surprise: {
+    id: 'surprise',
+    title: 'Surprise benchmark',
+    description: 'A newly released independent benchmark reassesses your public model with updated evaluation criteria.',
+  },
+  investor: {
+    id: 'investor',
+    title: 'Investor visit',
+    description: 'A venture capitalist stops by the laboratory looking to make an off-cycle investment.',
+    isChoice: true,
+  },
+  stumble: {
+    id: 'stumble',
+    title: 'Rival stumble',
+    description: 'A rival lab releases a model with catastrophic regressions, cutting their market appeal in half for 180s.',
+  },
+  dataset: {
+    id: 'dataset',
+    title: 'Community dataset',
+    description: 'An open collective publishes a meticulously cleaned multimodal benchmark dataset (+4 data quality).',
+  },
+  quiet: {
+    id: 'quiet',
+    title: 'Quiet week',
+    description: 'Routine maintenance and quiet markets give your engineers room to optimize cache efficiency (+$500).',
+  },
+};
+
+export const ALL_EVENT_IDS: EventId[] = [
+  'hype',
+  'outage',
+  'rules',
+  'viral',
+  'leak',
+  'poach',
+  'brownout',
+  'surprise',
+  'investor',
+  'stumble',
+  'dataset',
+  'quiet',
+];
+
+// Achievements definitions from GAME_DESIGN.md
+export type AchievementId =
+  | 'first-spark'
+  | 'on-the-board'
+  | 'pocket-lab'
+  | 'full-house'
+  | 'data-hoarder'
+  | 'upset'
+  | 'market-leader'
+  | 'millionaire'
+  | 'public-company'
+  | 'night-shift'
+  | 'new-era'
+  | 'frontier';
+
+export interface AchievementDefinition {
+  id: AchievementId;
+  name: string;
+  rule: string;
+  bonusText: string;
+  scoreMultiplier?: number;
+  revenueMultiplier?: number;
+}
+
+export const ACHIEVEMENTS: Record<AchievementId, AchievementDefinition> = {
+  'first-spark': {
+    id: 'first-spark',
+    name: 'First spark',
+    rule: 'Finish training 1 model',
+    bonusText: 'Score ×1.01',
+    scoreMultiplier: 1.01,
+  },
+  'on-the-board': {
+    id: 'on-the-board',
+    name: 'On the board',
+    rule: 'Launch 1 model',
+    bonusText: 'Revenue ×1.01',
+    revenueMultiplier: 1.01,
+  },
+  'pocket-lab': {
+    id: 'pocket-lab',
+    name: 'Pocket lab',
+    rule: 'Own 5 GPUs',
+    bonusText: 'Badge',
+  },
+  'full-house': {
+    id: 'full-house',
+    name: 'Full house',
+    rule: 'Have 5 researchers',
+    bonusText: 'Badge',
+  },
+  'data-hoarder': {
+    id: 'data-hoarder',
+    name: 'Data hoarder',
+    rule: 'Data quality ≥ 60',
+    bonusText: 'Badge',
+  },
+  'upset': {
+    id: 'upset',
+    name: 'Upset',
+    rule: 'Your best score > Helix Atelier\'s best score',
+    bonusText: 'Revenue ×1.01',
+    revenueMultiplier: 1.01,
+  },
+  'market-leader': {
+    id: 'market-leader',
+    name: 'Market leader',
+    rule: 'Market share ≥ 40% at any moment',
+    bonusText: 'Revenue ×1.02',
+    revenueMultiplier: 1.02,
+  },
+  'millionaire': {
+    id: 'millionaire',
+    name: 'Millionaire',
+    rule: 'Cash on hand ≥ $1,000,000',
+    bonusText: 'Badge',
+  },
+  'public-company': {
+    id: 'public-company',
+    name: 'Funded',
+    rule: 'Take Series A funding',
+    bonusText: 'Badge',
+  },
+  'night-shift': {
+    id: 'night-shift',
+    name: 'Night shift',
+    rule: 'Return from at least 1 hour offline',
+    bonusText: 'Badge',
+  },
+  'new-era': {
+    id: 'new-era',
+    name: 'New era',
+    rule: 'Prestige once',
+    bonusText: 'Score ×1.01',
+    scoreMultiplier: 1.01,
+  },
+  'frontier': {
+    id: 'frontier',
+    name: 'Frontier light',
+    rule: 'Launch a Frontier model',
+    bonusText: 'Revenue ×1.02',
+    revenueMultiplier: 1.02,
+  },
+};
+
+export const ALL_ACHIEVEMENT_IDS: AchievementId[] = [
+  'first-spark',
+  'on-the-board',
+  'pocket-lab',
+  'full-house',
+  'data-hoarder',
+  'upset',
+  'market-leader',
+  'millionaire',
+  'public-company',
+  'night-shift',
+  'new-era',
+  'frontier',
+];
+
 export interface FundingDef {
   id: 'seed' | 'series-a' | 'series-b';
   name: string;

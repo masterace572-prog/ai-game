@@ -62,6 +62,62 @@ export type ResearchNodeId =
   | 'reasoning'
   | 'agent-harness';
 
+export type EventId =
+  | 'hype'
+  | 'outage'
+  | 'rules'
+  | 'viral'
+  | 'leak'
+  | 'poach'
+  | 'brownout'
+  | 'surprise'
+  | 'investor'
+  | 'stumble'
+  | 'dataset'
+  | 'quiet';
+
+export interface ActiveTimedEvent {
+  id: EventId;
+  title: string;
+  remainingSeconds: number;
+  targetRivalId?: string;
+  scoreDeltaMultiplier?: number;
+}
+
+export interface EventLogEntry {
+  id: string;
+  eventId: EventId;
+  title: string;
+  outcomeText: string;
+  timestamp: number;
+}
+
+export interface PendingEvent {
+  id: EventId;
+  title: string;
+  description: string;
+  isChoice?: boolean;
+  choice1Label?: string;
+  choice2Label?: string;
+  cost?: number;
+  rivalId?: string;
+  reputationChange?: number;
+}
+
+export type AchievementId =
+  | 'first-spark'
+  | 'on-the-board'
+  | 'pocket-lab'
+  | 'full-house'
+  | 'data-hoarder'
+  | 'upset'
+  | 'market-leader'
+  | 'millionaire'
+  | 'public-company'
+  | 'night-shift'
+  | 'new-era'
+  | 'frontier';
+
 export interface GameState {
   version: 1;
   savedAt: number;
@@ -99,4 +155,19 @@ export interface GameState {
 
   // Research tree state (Phase 6)
   researchOwned: Partial<Record<ResearchNodeId, boolean>>;
+
+  // Events system state (Phase 7)
+  eventCooldownTimer: number; // cooldown in seconds before next event can roll (90s default)
+  eventRollTimer: number; // 60s timer between roll checks
+  pendingEvent: PendingEvent | null;
+  activeTimedEvents: ActiveTimedEvent[];
+  eventLogs: EventLogEntry[]; // last 30 events
+
+  // Achievements state (Phase 7)
+  achievements: Partial<Record<AchievementId, boolean>>;
+  timesPrestiged: number;
+
+  // Tutorial state (Phase 7)
+  tutorialStep: number;
+  tutorialDone: boolean;
 }
