@@ -37,10 +37,10 @@ export interface RivalTrainingJob {
 export interface RivalState {
   id: string;
   name: string;
-  shortCode: string; // Monogram, e.g. HA, PM, NG, VW
+  shortCode: string; // Monogram: HA, PM, NG, VW
   style: string;
   bestScore: number;
-  freshness: number; // 0.40 to 1.0
+  freshness: number;
   stockPrice: number;
   speedMultiplier: number;
   growthFactor: number;
@@ -49,6 +49,8 @@ export interface RivalState {
   trainingJob: RivalTrainingJob | null;
   idleTimer: number;
 }
+
+export type FundingRoundId = 'seed' | 'series-a' | 'series-b';
 
 export interface GameState {
   version: 1;
@@ -72,4 +74,16 @@ export interface GameState {
   lastTickTime: number;
   playerFreshness: number;
   rivals: RivalState[];
+
+  // Economy state (Phase 5)
+  coolingPurchases: number; // 0 to 5
+  officeSnacks: boolean;
+  salaryMultiplier: number;
+  dataCentersOwned: number; // 0 to 4
+  stocksOwned: Record<string, number>; // rivalId -> shares (max 200)
+  stockPriceTimer: number; // ticks every 30s
+  fundingTaken: Record<string, boolean>; // seed, series-a, series-b
+  marketingActiveSeconds: number; // remaining duration of hype
+  marketingCooldownSeconds: number; // cooldown before next campaign
+  payrollTight: boolean;
 }

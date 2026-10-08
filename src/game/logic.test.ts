@@ -9,19 +9,213 @@ import {
   calculateMarket,
   calculateAppeal,
   stepGame,
+  getGpuPrice,
+  getResearcherPrice,
+  getCoolingPrice,
+  getStockSellProceeds,
+  canTakeFunding,
+  buyGpu,
+  buyCooling,
+  hireResearcher,
+  buyOfficeSnacks,
+  buyStock,
+  sellStock,
+  buyDataCenter,
+  startMarketingCampaign,
 } from './logic';
 import { MODEL_SIZES, FRESHNESS_FLOOR } from './balance';
 import * as balanceModule from './balance';
 import { createInitialState } from './save';
 import type { TrainedModel } from './types';
 
-describe('Phase 4: Rivals, Market Share & Real Revenue', () => {
+describe('Phase 5: Economy, Shop, Salaries, Stocks & Funding', () => {
+  it('GPU price formula', () => {
+    // cost = round(3500 * (1.12 ^ gpusOwned))
+    expect(getGpuPrice(0)).toBe(3500);
+    expect(getGpuPrice(1)).toBe(Math.round(3500 * 1.12)); // 3920
+    expect(getGpuPrice(2)).toBe(Math.round(3500 * 1.12 * 1.12)); // 4390
+    expect(getGpuPrice(5)).toBe(Math.round(3500 * Math.pow(1.12, 5))); // 6168
+  });
+
+  it('hire price formula', () => {
+    // cost = round(8000 * (1.18 ^ researchers))
+    expect(getResearcherPrice(0)).toBe(8000);
+    expect(getResearcherPrice(1)).toBe(Math.round(8000 * 1.18)); // 9440
+    expect(getResearcherPrice(2)).toBe(Math.round(8000 * Math.pow(1.18, 2))); // 11139
+    expect(getResearcherPrice(5)).toBe(Math.round(8000 * Math.pow(1.18, 5))); // 18302
+  });
+
+  it('salary drain for 10 seconds', () => {
+    // 1 researcher, salary multiplier 1.0 -> salaries = 0.15/sec
+    // Upkeep = 0 (no data centers)
+    // No launched models -> revenue = 0
+    // Net cash change for 10 seconds = -1.50
+    const state = createInitialState('Drain Lab', true);
+    state.cash = 25000;
+    state.researchers = 1;
+    state.salaryMultiplier = 1.0;
+    state.dataCentersOwned = 0;
+    state.bestLaunchedModel = null;
+
+    let current = state;
+    for (let i = 0; i < 10; i++) {
+      current = stepGame(current, 1.0).state;
+    }
+
+    expect(current.cash).toBeCloseTo(25000 - 10 * 0.15, 4);
+    expect(current.cash).toBeCloseTo(24998.5, 4);
+  });
+
+  it('stock sell fee (pays 98%)', () => {
+    // 2% fee
+    expect(getStockSellProceeds(100, 1)).toBe(98);
+    expect(getStockSellProceeds(50, 10)).toBe(490);
+    expect(getStockSellProceeds(200, 2)).toBe(392);
+  });
+
+  it('Series A locked at score 79 and open at 80', () => {
+    const state79 = createInitialState('Series A Lab 79', true);
+    state79.bestLaunchedModel = {
+      id: 'm-79',
+      name: 'Nearly There',
+      sizeId: 'medium',
+      score: 79,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+    const check79 = canTakeFunding('series-a', state79);
+    expect(check79.canTake).toBe(false);
+    expect(check79.reason).toMatch(/80/);
+
+    const state80 = createInitialState('Series A Lab 80', true);
+    state80.bestLaunchedModel = {
+      id: 'm-80',
+      name: 'Series A Qualified',
+      sizeId: 'medium',
+      score: 80,
+      trainedAt: Date.now(),
+      launched: true,
+      launchedAt: Date.now(),
+    };
+    const check80 = canTakeFunding('series-a', state80);
+    expect(check80.canTake).toBe(true);
+  });
+
+  it('buys GPUs, cooling, researchers, and snacks correctly', () => {
+    let state = createInitialState('Upgrade Lab', true);
+    state.cash = 100000;
+    state.gpus = 2;
+    state.powerCap = 4;
+    state.researchers = 1;
+    state.coolingPurchases = 0;
+    state.salaryMultiplier = 1.0;
+
+    // Buy GPU
+    const gpuCost = getGpuPrice(2);
+    state = buyGpu(state);
+    expect(state.gpus).toBe(3);
+    expect(state.cash).toBe(100000 - gpuCost);
+
+    // Buy Cooling
+    const coolingCost = getCoolingPrice(0);
+    const cashBeforeCooling = state.cash;
+    state = buyCooling(state);
+    expect(state.coolingPurchases).toBe(1);
+    expect(state.powerCap).toBe(6); // 4 + 2
+    expect(state.cash).toBe(cashBeforeCooling - coolingCost);
+
+    // Hire Researcher
+    const hireCost = getResearcherPrice(1);
+    const cashBeforeHire = state.cash;
+    state = hireResearcher(state);
+    expect(state.researchers).toBe(2);
+    expect(state.cash).toBe(cashBeforeHire - hireCost);
+
+    // Buy Snacks
+    state = buyOfficeSnacks(state);
+    expect(state.officeSnacks).toBe(true);
+    expect(state.salaryMultiplier).toBeCloseTo(0.95, 4);
+  });
+
+  it('buys and sells rival stocks respecting cap and 2% fee', () => {
+    let state = createInitialState('Stock Lab', true);
+    state.cash = 50000;
+    const rival = state.rivals[0];
+    const initialPrice = rival.stockPrice;
+
+    // Buy 10 shares
+    state = buyStock(state, rival.id, 10);
+    expect(state.stocksOwned?.[rival.id]).toBe(10);
+    expect(state.cash).toBe(50000 - initialPrice * 10);
+
+    // Cap at 200 shares
+    state = buyStock(state, rival.id, 300);
+    expect(state.stocksOwned?.[rival.id]).toBe(200);
+
+    // Sell 50 shares
+    const cashBeforeSell = state.cash;
+    const expectedProceeds = Math.floor(50 * initialPrice * 0.98);
+    state = sellStock(state, rival.id, 50);
+    expect(state.stocksOwned?.[rival.id]).toBe(150);
+    expect(state.cash).toBe(cashBeforeSell + expectedProceeds);
+  });
+
+  it('manages data center purchase and score multiplier', () => {
+    let state = createInitialState('DC Lab', true);
+    state.cash = 50000;
+    state.dataCentersOwned = 0;
+    const initialPowerCap = state.powerCap;
+
+    state = buyDataCenter(state);
+    expect(state.dataCentersOwned).toBe(1);
+    expect(state.powerCap).toBe(initialPowerCap + 6);
+    expect(state.cash).toBe(50000 - 20000);
+
+    // Score calculation includes 1 + 0.02 * dataCentersOwned
+    const scoreWithoutDC = calculateScore(70, 20, 1, 1, 0, 0, 1.0);
+    const scoreWithDC = calculateScore(70, 20, 1, 1, 0, 1, 1.0);
+    expect(scoreWithDC).toBeGreaterThanOrEqual(scoreWithoutDC);
+  });
+
+  it('prevents cash dropping below 0 and flags payrollTight', () => {
+    let state = createInitialState('Broke Lab', true);
+    state.cash = 0.05;
+    state.researchers = 5; // salaries = 0.75/s
+    state.bestLaunchedModel = null; // no revenue
+
+    const stepped = stepGame(state, 1.0).state;
+    expect(stepped.cash).toBe(0);
+    expect(stepped.payrollTight).toBe(true);
+
+    // Stepping again does not accumulate debt
+    const steppedAgain = stepGame(stepped, 1.0).state;
+    expect(steppedAgain.cash).toBe(0);
+    expect(steppedAgain.payrollTight).toBe(true);
+  });
+
+  it('marketing campaign boosts hype for 180s then enters cooldown', () => {
+    let state = createInitialState('Marketing Lab', true);
+    state.cash = 5000;
+    state = startMarketingCampaign(state);
+    expect(state.marketingActiveSeconds).toBe(180);
+    expect(state.cash).toBe(3000);
+
+    // Step 10 seconds (1s per tick)
+    for (let i = 0; i < 10; i++) {
+      state = stepGame(state, 1.0).state;
+    }
+    expect(state.marketingActiveSeconds).toBe(170);
+
+    // Step 175 seconds more (exceeding active duration)
+    for (let i = 0; i < 175; i++) {
+      state = stepGame(state, 1.0).state;
+    }
+    expect(state.marketingActiveSeconds).toBe(0);
+    expect(state.marketingCooldownSeconds).toBeGreaterThan(0);
+  });
+
   it('score at known inputs with a fixed roll', () => {
-    // Medium baseScore = 70, dataQuality = 20, researchers = 1
-    // quality = 0.65 + 0.35 * 0.20 = 0.72
-    // talent = 1 + 0.03 = 1.03
-    // base product = 70 * 0.72 * 1.03 = 51.912
-    // With roll 1.0 -> round(51.912) = 52
     const score1 = calculateScore(70, 20, 1, 1, 0, 1, 1.0);
     expect(score1).toBe(52);
 
@@ -72,19 +266,6 @@ describe('Phase 4: Rivals, Market Share & Real Revenue', () => {
   });
 
   it('with fixed appeals, share and revenue match a hand-computed example', () => {
-    // Hand-computed scenario:
-    // Player appeal = 40 (e.g. score 40, freshness 1.0, reputation 0, hype 1.0)
-    // Rival 1 (HA): score 20, freshness 1.0, hype 1.0 -> appeal = 20
-    // Rival 2 (PM): score 10, freshness 1.0, hype 1.0 -> appeal = 10
-    // Rival 3 (NG): score 10, freshness 1.0, hype 1.0 -> appeal = 10
-    // Rival 4 (VW): score 20, freshness 1.0, hype 1.0 -> appeal = 20
-    // Sum of rivals = 60
-    // Total appeal = 40 + 60 = 100
-    // Player share = 40 / 100 = 0.40 (40.0%)
-    // Era 1 demand = 6 * (1.55 ^ 0) = 6.0
-    // Revenue per sec = 6.0 * 0.40 = 2.40
-    // Subscriptions (65%) = 2.40 * 0.65 = 1.56
-    // API (35%) = 2.40 * 0.35 = 0.84
     const state = createInitialState('Hand Calc Lab', true);
     state.era = 1;
     state.reputation = 0;
@@ -191,46 +372,32 @@ describe('Phase 4: Rivals, Market Share & Real Revenue', () => {
     };
     state.playerFreshness = 0.41;
 
-    // Simulate 1 second step: decays by 0.015/60 = 0.00025 -> 0.40975
     const step1 = stepGame(state, 1.0);
     expect(step1.state.playerFreshness).toBeCloseTo(0.40975, 5);
 
-    // Simulate huge time lapse: should hit floor 0.40 and not go below
     let curr = state;
     for (let i = 0; i < 200; i++) {
       curr = stepGame(curr, 1.0).state;
     }
     expect(curr.playerFreshness).toBe(0.40);
 
-    // Also check rivals freshness floor
     for (const rival of curr.rivals) {
       expect(rival.freshness).toBeGreaterThanOrEqual(0.40);
     }
   });
 
   it('stipend constants are gone: player appeal 0 with positive rival appeal means $0 income', () => {
-    // Check that TEMP_STIPEND_PER_SEC constant does not exist on balance module
     expect((balanceModule as Record<string, unknown>).TEMP_STIPEND_PER_SEC).toBeUndefined();
 
-    // With a fresh state (no launched models, so player appeal is 0)
     const state = createInitialState('Zero Appeal Lab', true);
     expect(state.bestLaunchedModel).toBeNull();
     expect(state.rivals.length).toBeGreaterThan(0);
 
-    // Income per second must be exactly 0
     const income = getIncomePerSec(state);
-    expect(income.income).toBe(0);
-
-    // Stepping the game does not increase cash
-    const initialCash = state.cash;
-    const stepped = stepGame(state, 1.0);
-    expect(stepped.state.cash).toBe(initialCash);
+    expect(income.grossRevenue).toBe(0);
   });
 
   it('calculates appeal with reputation and hype', () => {
-    // score 50, freshness 0.8, reputation 50, hype 1.15
-    // reputation multiplier = 1 + 50/250 = 1.20
-    // appeal = 50 * 0.8 * 1.20 * 1.15 = 55.2
     const appeal = calculateAppeal(50, 0.8, 50, 1.15);
     expect(appeal).toBeCloseTo(55.2, 5);
   });

@@ -9,6 +9,21 @@ import {
   FRESHNESS_DECAY_PER_MIN,
   FRESHNESS_FLOOR,
   REPUTATION_DECAY_PER_MIN,
+  COOLING_UPGRADE_POWER_CAP,
+  COOLING_MAX_PURCHASES,
+  DATA_UPGRADE_AMOUNT,
+  DATA_CENTERS,
+  DATA_CENTER_UPKEEP_PER_SEC,
+  BASE_SALARY_PER_RESEARCHER_PER_SEC,
+  OFFICE_SNACKS_COST,
+  OFFICE_SNACKS_SALARY_MULT,
+  MARKETING_CAMPAIGN_COST,
+  MARKETING_CAMPAIGN_DURATION,
+  MARKETING_CAMPAIGN_COOLDOWN,
+  MARKETING_HYPE_BOOST,
+  STOCK_MAX_SHARES,
+  STOCK_SELL_FEE,
+  FUNDING_ROUNDS,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -22,7 +37,16 @@ import type {
   TrainingJob,
 } from './types';
 
-export { getGpuPrice, getResearcherPrice, getDataUpgradePrice, getCoolingPrice };
+export {
+  getGpuPrice,
+  getResearcherPrice,
+  getDataUpgradePrice,
+  getCoolingPrice,
+  DATA_CENTERS,
+  FUNDING_ROUNDS,
+  STOCK_MAX_SHARES,
+  STOCK_SELL_FEE,
+};
 
 /**
  * NPC training base durations from GAME_DESIGN.md:
@@ -42,6 +66,13 @@ export const NPC_BASE_SECONDS: Record<ModelSizeId, number> = {
  */
 export function getUsableGpus(gpusOwned: number, powerCap: number): number {
   return Math.max(1, Math.min(gpusOwned, powerCap));
+}
+
+/**
+ * Data center score multiplier (+0.02 each).
+ */
+export function getDataCenterScoreMultiplier(dataCentersOwned: number): number {
+  return Math.pow(1.02, dataCentersOwned);
 }
 
 /**
@@ -76,7 +107,7 @@ export function getTinyTrainingTime(usableGpus: number): number {
  * Score formula from GAME_DESIGN.md:
  * quality = 0.65 + 0.35 * (dataQuality / 100)
  * talent = 1 + min(0.50, researchers * 0.03)
- * arch = researchScoreMultiplier (starts at 1)
+ * arch = researchScoreMultiplier * dataCenterMultiplier
  * eraBonus = 1 + eraPoints * 0.02
  * achievementScoreBonus (starts at 1)
  * roll = random from 0.92 to 1.08 inclusive
@@ -155,8 +186,8 @@ export function generateModelName(usedNames: string[]): string {
  * - Small: nothing
  * - Medium: at least 1 model launched
  * - Large: at least 1 Medium launched
- * - Huge: Series A funding taken (not available yet)
- * - Frontier: Series B taken AND research node agent-harness owned (not available yet)
+ * - Huge: Series A funding taken
+ * - Frontier: Series B taken AND research node agent-harness owned
  */
 export function getModelUnlockStatus(
   sizeId: ModelSizeId,
@@ -181,7 +212,10 @@ export function getModelUnlockStatus(
       return { unlocked: true };
     }
     case 'huge':
-      return { unlocked: false, reason: 'Requires Series A funding' };
+      if (!state.fundingTaken?.['series-a']) {
+        return { unlocked: false, reason: 'Requires Series A funding' };
+      }
+      return { unlocked: true };
     case 'frontier':
       return { unlocked: false, reason: 'Requires Series B and agent-harness research' };
     default:
@@ -254,11 +288,12 @@ export function calculateAppeal(
  */
 export function getPlayerAppeal(state: GameState): number {
   if (!state.bestLaunchedModel) return 0;
+  const hype = state.marketingActiveSeconds > 0 ? MARKETING_HYPE_BOOST : 1.0;
   return calculateAppeal(
     state.bestLaunchedModel.score,
     state.playerFreshness ?? 1.0,
     state.reputation ?? 0,
-    1.0
+    hype
   );
 }
 
@@ -324,13 +359,233 @@ export function calculateMarket(state: GameState): MarketBreakdown {
 }
 
 /**
- * Real income per second for TopBar and Lab screen.
+ * Salaries and upkeep calculations:
+ * salaries = 0.15 * researchers * salaryMultiplier
+ * dataCenterUpkeep = 0.20 * dataCentersOwned
  */
-export function getIncomePerSec(state: GameState): { income: number; label: string } {
+export function getSalariesPerSec(researchers: number, salaryMultiplier: number): number {
+  return BASE_SALARY_PER_RESEARCHER_PER_SEC * researchers * salaryMultiplier;
+}
+
+export function getDataCenterUpkeepPerSec(dataCentersOwned: number): number {
+  return DATA_CENTER_UPKEEP_PER_SEC * dataCentersOwned;
+}
+
+export function getTotalOutflowPerSec(state: GameState): number {
+  const salaries = getSalariesPerSec(state.researchers, state.salaryMultiplier ?? 1.0);
+  const upkeep = getDataCenterUpkeepPerSec(state.dataCentersOwned ?? 0);
+  return salaries + upkeep;
+}
+
+/**
+ * Real net cash rate per second for TopBar and Lab screen.
+ */
+export function getIncomePerSec(state: GameState): {
+  income: number;
+  grossRevenue: number;
+  salaries: number;
+  upkeep: number;
+  label: string;
+} {
   const { revenuePerSec } = calculateMarket(state);
+  const salaries = getSalariesPerSec(state.researchers, state.salaryMultiplier ?? 1.0);
+  const upkeep = getDataCenterUpkeepPerSec(state.dataCentersOwned ?? 0);
+  const net = revenuePerSec - (salaries + upkeep);
+
   return {
-    income: revenuePerSec,
-    label: 'Market revenue',
+    income: net,
+    grossRevenue: revenuePerSec,
+    salaries,
+    upkeep,
+    label: 'Net cash flow',
+  };
+}
+
+/**
+ * Stock price calculation:
+ * price = max(10, round(rivalBestScore * 3 + 20))
+ */
+export function calculateStockPrice(rivalBestScore: number): number {
+  return Math.max(10, Math.round(rivalBestScore * 3 + 20));
+}
+
+/**
+ * Stock sell proceeds:
+ * 2% fee -> pays 98%
+ */
+export function getStockSellProceeds(price: number, shares: number = 1): number {
+  return price * (1 - STOCK_SELL_FEE) * shares;
+}
+
+// --- Player Economy Actions ---
+
+export function buyGpu(state: GameState): GameState {
+  const cost = getGpuPrice(state.gpus);
+  if (state.cash < cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    gpus: state.gpus + 1,
+  };
+}
+
+export function hireResearcher(state: GameState): GameState {
+  const cost = getResearcherPrice(state.researchers);
+  if (state.cash < cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    researchers: state.researchers + 1,
+  };
+}
+
+export function buyCooling(state: GameState): GameState {
+  if ((state.coolingPurchases ?? 0) >= COOLING_MAX_PURCHASES) return state;
+  const cost = getCoolingPrice(state.coolingPurchases ?? 0);
+  if (state.cash < cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    coolingPurchases: (state.coolingPurchases ?? 0) + 1,
+    powerCap: state.powerCap + COOLING_UPGRADE_POWER_CAP,
+  };
+}
+
+export function buyOfficeSnacks(state: GameState): GameState {
+  if (state.officeSnacks) return state;
+  if (state.cash < OFFICE_SNACKS_COST) return state;
+
+  return {
+    ...state,
+    cash: state.cash - OFFICE_SNACKS_COST,
+    officeSnacks: true,
+    salaryMultiplier: (state.salaryMultiplier ?? 1.0) * OFFICE_SNACKS_SALARY_MULT,
+  };
+}
+
+export function upgradeDataQuality(state: GameState): GameState {
+  if (state.dataQuality >= 100) return state;
+  const cost = getDataUpgradePrice(state.dataQuality);
+  if (state.cash < cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    dataQuality: Math.min(100, state.dataQuality + DATA_UPGRADE_AMOUNT),
+  };
+}
+
+export function buyDataCenter(state: GameState): GameState {
+  const nextTier = state.dataCentersOwned ?? 0;
+  if (nextTier >= DATA_CENTERS.length) return state;
+  const def = DATA_CENTERS[nextTier];
+  if (state.cash < def.cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - def.cost,
+    dataCentersOwned: nextTier + 1,
+    powerCap: state.powerCap + def.powerCapAdded,
+  };
+}
+
+export function buyStock(state: GameState, rivalId: string, sharesCount: number = 1): GameState {
+  const rival = state.rivals.find((r) => r.id === rivalId);
+  if (!rival) return state;
+
+  const currentShares = state.stocksOwned?.[rivalId] ?? 0;
+  const availableToBuy = Math.min(sharesCount, STOCK_MAX_SHARES - currentShares);
+  if (availableToBuy <= 0) return state;
+
+  const cost = rival.stockPrice * availableToBuy;
+  if (state.cash < cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - cost,
+    stocksOwned: {
+      ...state.stocksOwned,
+      [rivalId]: currentShares + availableToBuy,
+    },
+  };
+}
+
+export function sellStock(state: GameState, rivalId: string, sharesCount: number = 1): GameState {
+  const rival = state.rivals.find((r) => r.id === rivalId);
+  if (!rival) return state;
+
+  const currentShares = state.stocksOwned?.[rivalId] ?? 0;
+  const availableToSell = Math.min(sharesCount, currentShares);
+  if (availableToSell <= 0) return state;
+
+  const proceeds = getStockSellProceeds(rival.stockPrice, availableToSell);
+
+  return {
+    ...state,
+    cash: state.cash + proceeds,
+    stocksOwned: {
+      ...state.stocksOwned,
+      [rivalId]: currentShares - availableToSell,
+    },
+  };
+}
+
+export function canTakeFunding(
+  fundingId: 'seed' | 'series-a' | 'series-b',
+  state: GameState
+): { canTake: boolean; reason?: string } {
+  if (state.fundingTaken?.[fundingId]) {
+    return { canTake: false, reason: 'Already taken this era' };
+  }
+
+  const def = FUNDING_ROUNDS[fundingId];
+  const bestScore = state.bestLaunchedModel?.score ?? 0;
+  if (bestScore < def.requiredBestScore) {
+    return {
+      canTake: false,
+      reason: `Requires best launched score ≥ ${def.requiredBestScore}`,
+    };
+  }
+
+  return { canTake: true };
+}
+
+export function takeFunding(
+  fundingId: 'seed' | 'series-a' | 'series-b',
+  state: GameState
+): GameState {
+  const check = canTakeFunding(fundingId, state);
+  if (!check.canTake) return state;
+
+  const def = FUNDING_ROUNDS[fundingId];
+  return {
+    ...state,
+    cash: state.cash + def.cashAmount,
+    salaryMultiplier: (state.salaryMultiplier ?? 1.0) * def.salaryMultiplier,
+    fundingTaken: {
+      ...state.fundingTaken,
+      [fundingId]: true,
+    },
+  };
+}
+
+export function startMarketingCampaign(state: GameState): GameState {
+  if (
+    (state.marketingActiveSeconds ?? 0) > 0 ||
+    (state.marketingCooldownSeconds ?? 0) > 0
+  ) {
+    return state;
+  }
+  if (state.cash < MARKETING_CAMPAIGN_COST) return state;
+
+  return {
+    ...state,
+    cash: state.cash - MARKETING_CAMPAIGN_COST,
+    marketingActiveSeconds: MARKETING_CAMPAIGN_DURATION,
+    marketingCooldownSeconds: 0,
   };
 }
 
@@ -344,7 +599,13 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
   const modelDef = MODEL_SIZES[sizeId];
   const usable = getUsableGpus(state.gpus, state.powerCap);
   const totalSeconds = calculateTrainingTime(modelDef.baseSeconds, usable);
-  const rolledScore = calculateScore(modelDef.baseScore, state.dataQuality, state.researchers);
+  const archMult = getDataCenterScoreMultiplier(state.dataCentersOwned ?? 0);
+  const rolledScore = calculateScore(
+    modelDef.baseScore,
+    state.dataQuality,
+    state.researchers,
+    archMult
+  );
   const proposedName = generateModelName(state.usedModelNames);
 
   const job: TrainingJob = {
@@ -366,6 +627,7 @@ export function startTraining(state: GameState, sizeId: ModelSizeId): GameState 
 /**
  * Advance the simulation by deltaSeconds.
  * Ticks player training, player freshness/reputation decay, market revenue,
+ * salaries/upkeep drain, stock prices timer, marketing campaign timer,
  * and rival training/launch timers.
  */
 export function stepGame(
@@ -388,9 +650,27 @@ export function stepGame(
   const reputationDecayPerSec = REPUTATION_DECAY_PER_MIN / 60;
   const reputation = Math.max(0, (state.reputation ?? 0) - reputationDecayPerSec * cappedDelta);
 
-  // 3. Step rivals
+  // 3. Marketing Campaign timers
+  let marketingActiveSeconds = state.marketingActiveSeconds ?? 0;
+  let marketingCooldownSeconds = state.marketingCooldownSeconds ?? 0;
+  if (marketingActiveSeconds > 0) {
+    marketingActiveSeconds = Math.max(0, marketingActiveSeconds - cappedDelta);
+    if (marketingActiveSeconds === 0) {
+      marketingCooldownSeconds = MARKETING_CAMPAIGN_COOLDOWN;
+    }
+  } else if (marketingCooldownSeconds > 0) {
+    marketingCooldownSeconds = Math.max(0, marketingCooldownSeconds - cappedDelta);
+  }
+
+  // 4. Stock Price Timer (recalculates every 30 seconds)
+  let stockPriceTimer = (state.stockPriceTimer ?? 30) - cappedDelta;
+  const recalculateStockPrices = stockPriceTimer <= 0;
+  if (recalculateStockPrices) {
+    stockPriceTimer = 30;
+  }
+
+  // 5. Step rivals
   const updatedRivals: RivalState[] = (state.rivals ?? []).map((rival) => {
-    // Decay rival freshness
     let rivalFreshness = Math.max(
       FRESHNESS_FLOOR,
       rival.freshness - freshnessDecayPerSec * cappedDelta
@@ -398,22 +678,23 @@ export function stepGame(
     let bestScore = rival.bestScore;
     let trainingJob = rival.trainingJob;
     let idleTimer = rival.idleTimer;
+    let stockPrice = recalculateStockPrices ? calculateStockPrice(bestScore) : rival.stockPrice;
 
     if (trainingJob) {
       const progress = trainingJob.progressSeconds + cappedDelta;
       if (progress >= trainingJob.totalSeconds) {
-        // Rival finishes training and launches
-        rivalFreshness = 1.0; // resets to 1 on launch
+        rivalFreshness = 1.0;
         const flatBonus = 1;
         const randomFactor = 0.95 + Math.random() * 0.10;
         const calculatedJump = Math.round(bestScore * rival.growthFactor * randomFactor + flatBonus);
-        const maxScore = Math.round(bestScore * 1.40); // cap single jump at +40%
+        const maxScore = Math.round(bestScore * 1.40);
         const newScore = Math.min(maxScore, calculatedJump);
         if (newScore > bestScore) {
           bestScore = newScore;
+          stockPrice = calculateStockPrice(bestScore);
         }
         trainingJob = null;
-        idleTimer = 5 + Math.random() * 10; // 5-15s idle before starting next
+        idleTimer = 5 + Math.random() * 10;
       } else {
         trainingJob = {
           ...trainingJob,
@@ -423,7 +704,6 @@ export function stepGame(
     } else {
       idleTimer -= cappedDelta;
       if (idleTimer <= 0) {
-        // Pick preferred size
         const sizes = rival.preferredSizes;
         const pickedSize = sizes[Math.floor(Math.random() * sizes.length)] ?? 'tiny';
         const baseSec = NPC_BASE_SECONDS[pickedSize] ?? 30;
@@ -440,26 +720,42 @@ export function stepGame(
       ...rival,
       bestScore,
       freshness: rivalFreshness,
+      stockPrice,
       trainingJob,
       idleTimer,
     };
   });
 
-  // Intermediate state to compute real revenue
+  // Interim state for market calculation
   const interimState: GameState = {
     ...state,
     playerFreshness,
     reputation,
+    marketingActiveSeconds,
+    marketingCooldownSeconds,
     rivals: updatedRivals,
   };
 
-  // 4. Earn real market revenue
+  // 6. Revenue and salaries/upkeep drain
   const { revenuePerSec } = calculateMarket(interimState);
-  const incomeEarned = revenuePerSec * cappedDelta;
-  const newCash = state.cash + incomeEarned;
-  const newLifetime = state.lifetimeCashEarned + incomeEarned;
+  const totalOutflowPerSec = getTotalOutflowPerSec(interimState);
+  const netRate = revenuePerSec - totalOutflowPerSec;
+  const netDelta = netRate * cappedDelta;
 
-  // 5. Step player training
+  let newCash = state.cash + netDelta;
+  let payrollTight = false;
+
+  if (newCash <= 0) {
+    newCash = 0;
+    if (netRate < 0) {
+      payrollTight = true;
+    }
+  }
+
+  const grossEarned = revenuePerSec * cappedDelta;
+  const newLifetime = state.lifetimeCashEarned + Math.max(0, grossEarned);
+
+  // 7. Step player training
   let currentTraining = state.currentTraining;
   let readyModel = state.readyModel;
   let modelFinished = false;
@@ -495,6 +791,8 @@ export function stepGame(
       currentTraining,
       readyModel,
       usedModelNames,
+      stockPriceTimer,
+      payrollTight,
       lastTickTime: Date.now(),
     },
     modelFinished,
@@ -518,7 +816,6 @@ export function launchModel(state: GameState): GameState {
   const isNewBest = !state.bestLaunchedModel || score > state.bestLaunchedModel.score;
   const bestLaunchedModel = isNewBest ? launched : state.bestLaunchedModel;
 
-  // Reputation +2 + score / 50 on your launch, cap 100
   const reputationGain = 2 + score / 50;
   const newReputation = Math.min(100, (state.reputation ?? 0) + reputationGain);
 
@@ -527,7 +824,7 @@ export function launchModel(state: GameState): GameState {
     readyModel: null,
     launchedModels: [launched, ...state.launchedModels],
     bestLaunchedModel,
-    playerFreshness: 1.0, // Resets to 1 on launch
+    playerFreshness: 1.0,
     reputation: newReputation,
   };
 }

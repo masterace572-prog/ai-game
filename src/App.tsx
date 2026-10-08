@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Landmark,
-  Menu,
+  Users,
   Play,
   ArrowUpRight,
   Award,
+  AlertTriangle,
+  ChevronLeft,
 } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import { Button } from './ui/Button';
@@ -15,6 +16,9 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
 import { ModelsScreen } from './ui/ModelsScreen';
 import { MarketScreen } from './ui/MarketScreen';
+import { InvestScreen } from './ui/InvestScreen';
+import { TeamScreen } from './ui/TeamScreen';
+import { MoreScreen } from './ui/MoreScreen';
 import { loadGameState, saveGameState } from './game/save';
 import {
   stepGame,
@@ -26,12 +30,22 @@ import {
   getIncomePerSec,
   calculateMarket,
   canTrainModel,
+  buyGpu,
+  hireResearcher,
+  buyCooling,
+  buyOfficeSnacks,
+  upgradeDataQuality,
+  buyDataCenter,
+  takeFunding,
+  buyStock,
+  sellStock,
+  startMarketingCampaign,
 } from './game/logic';
 import {
   MODEL_SIZES,
   DEFAULT_LAB_NAME,
 } from './game/balance';
-import type { GameState, ModelSizeId } from './game/types';
+import type { GameState, ModelSizeId, FundingRoundId } from './game/types';
 import './styles.css';
 
 export const App: React.FC = () => {
@@ -40,7 +54,7 @@ export const App: React.FC = () => {
     return loaded.state;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId>('lab');
+  const [activeTab, setActiveTab] = useState<NavTabId | 'team'>('lab');
   const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
 
   const gameStateRef = useRef(gameState);
@@ -99,7 +113,6 @@ export const App: React.FC = () => {
         stopTimer();
         triggerSave(gameStateRef.current);
       } else {
-        // Resume timer without large offline catch-up
         startTimer();
       }
     };
@@ -148,8 +161,89 @@ export const App: React.FC = () => {
     }
   };
 
-  // Real market revenue
-  const { income: incomePerSec, label: incomeLabel } = getIncomePerSec(gameState);
+  // Economy Actions
+  const handleBuyGpu = () => {
+    const nextState = buyGpu(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleHireResearcher = () => {
+    const nextState = hireResearcher(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleBuyCooling = () => {
+    const nextState = buyCooling(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleBuySnacks = () => {
+    const nextState = buyOfficeSnacks(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleUpgradeDataQuality = () => {
+    const nextState = upgradeDataQuality(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleBuyDataCenter = () => {
+    const nextState = buyDataCenter(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleTakeFunding = (roundId: FundingRoundId) => {
+    const nextState = takeFunding(roundId, gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleBuyStock = (rivalId: string, sharesCount: number) => {
+    const nextState = buyStock(gameStateRef.current, rivalId, sharesCount);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleSellStock = (rivalId: string, sharesCount: number) => {
+    const nextState = sellStock(gameStateRef.current, rivalId, sharesCount);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  const handleStartMarketing = () => {
+    const nextState = startMarketingCampaign(gameStateRef.current);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      triggerSave(nextState);
+    }
+  };
+
+  // Real market revenue & net income
+  const { income: netIncome, label: incomeLabel } = getIncomePerSec(gameState);
   const market = calculateMarket(gameState);
 
   // Derived values for Lab tab
@@ -170,13 +264,36 @@ export const App: React.FC = () => {
       <TopBar
         labName={gameState.labName}
         cash={gameState.cash}
-        incomePerSec={incomePerSec}
+        incomePerSec={netIncome}
       />
 
       {/* Main Content Area */}
       <main className="main-content">
         {activeTab === 'lab' && (
           <div className="tab-pane">
+            {/* Payroll Alert if cash is 0 */}
+            {gameState.payrollTight && (
+              <Surface
+                style={{
+                  borderColor: 'var(--warning)',
+                  padding: 'var(--space-3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                }}
+              >
+                <Icon icon={AlertTriangle} size={20} color="var(--warning)" aria-hidden="true" />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--warning)' }}>
+                    Payroll is tight
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Cash is $0. Salaries paused at zero floor; debt does not accumulate.
+                  </span>
+                </div>
+              </Surface>
+            )}
+
             {/* Cash Headline */}
             <section className="cash-section">
               <span className="cash-label">Cash on hand</span>
@@ -184,8 +301,13 @@ export const App: React.FC = () => {
                 ${Math.floor(gameState.cash).toLocaleString()}
               </div>
               <div className="income-badge">
-                <span className="income-rate">
-                  +${incomePerSec.toFixed(2)}/s
+                <span
+                  className="income-rate"
+                  style={{
+                    color: netIncome >= 0 ? 'var(--success)' : 'var(--danger)',
+                  }}
+                >
+                  {netIncome >= 0 ? '+' : '-'}${Math.abs(netIncome).toFixed(2)}/s
                 </span>
                 <span className="income-label">
                   {market.playerShare > 0
@@ -194,6 +316,48 @@ export const App: React.FC = () => {
                 </span>
               </div>
             </section>
+
+            {/* Shortcut to Team & Compute */}
+            <Surface
+              onClick={() => setActiveTab('team')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setActiveTab('team');
+                }
+              }}
+              style={{
+                padding: 'var(--space-3) var(--space-4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <Icon icon={Users} size={20} color="var(--primary)" aria-hidden="true" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
+                    Team & Compute
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {usableGpus}/{gameState.gpus} GPUs online · {gameState.researchers} researcher{gameState.researchers === 1 ? '' : 's'}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  setActiveTab('team');
+                }}
+                style={{ minHeight: '36px', height: '36px', padding: '0 var(--space-3)', fontSize: '13px' }}
+              >
+                <span>Manage</span>
+              </Button>
+            </Surface>
 
             {/* Best Launched Model Card */}
             <Surface className="info-card">
@@ -349,24 +513,56 @@ export const App: React.FC = () => {
           <MarketScreen gameState={gameState} />
         )}
 
-        {(activeTab === 'invest' || activeTab === 'more') && (
-          <div className="tab-pane">
-            <h1 className="screen-title">
-              {activeTab === 'invest' && 'Invest'}
-              {activeTab === 'more' && 'More'}
-            </h1>
-            <Surface className="empty-tab-surface">
-              <div className="empty-icon-wrap">
-                <Icon
-                  icon={activeTab === 'invest' ? Landmark : Menu}
-                  size={24}
-                  color="var(--text-secondary)"
-                  aria-hidden="true"
-                />
-              </div>
-              <p className="empty-tab-text">Not built yet</p>
-            </Surface>
+        {activeTab === 'invest' && (
+          <InvestScreen
+            gameState={gameState}
+            onBuyDataCenter={handleBuyDataCenter}
+            onTakeFunding={handleTakeFunding}
+            onBuyStock={handleBuyStock}
+            onSellStock={handleSellStock}
+          />
+        )}
+
+        {activeTab === 'team' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('more')}
+              style={{
+                alignSelf: 'flex-start',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: 'var(--space-2) 0',
+                minHeight: '48px',
+              }}
+            >
+              <Icon icon={ChevronLeft} size={20} aria-hidden="true" />
+              <span>Back to More</span>
+            </button>
+            <TeamScreen
+              gameState={gameState}
+              onBuyGpu={handleBuyGpu}
+              onHireResearcher={handleHireResearcher}
+              onBuyCooling={handleBuyCooling}
+              onBuySnacks={handleBuySnacks}
+              onUpgradeDataQuality={handleUpgradeDataQuality}
+              onStartMarketing={handleStartMarketing}
+            />
           </div>
+        )}
+
+        {activeTab === 'more' && (
+          <MoreScreen
+            gameState={gameState}
+            onNavigateToTeam={() => setActiveTab('team')}
+          />
         )}
       </main>
 

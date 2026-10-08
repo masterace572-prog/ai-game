@@ -117,6 +117,18 @@ export function createInitialState(
     lastTickTime: Date.now(),
     playerFreshness: 1.0,
     rivals: createDefaultRivals(),
+
+    // Economy state
+    coolingPurchases: 0,
+    officeSnacks: false,
+    salaryMultiplier: 1.0,
+    dataCentersOwned: 0,
+    stocksOwned: { helix: 0, pebble: 0, northglass: 0, vesper: 0 },
+    stockPriceTimer: 30,
+    fundingTaken: {},
+    marketingActiveSeconds: 0,
+    marketingCooldownSeconds: 0,
+    payrollTight: false,
   };
 }
 
@@ -131,7 +143,6 @@ export function saveGameState(state: GameState, storage?: StorageLike | null): b
       savedAt: Date.now(),
     });
 
-    // Copy previous main key value to backup key before overwriting
     const existingMain = store.getItem(SAVE_KEY);
     if (existingMain) {
       try {
@@ -164,6 +175,16 @@ function parseState(raw: string | null): GameState | null {
         ...parsed,
         playerFreshness: parsed.playerFreshness ?? 1.0,
         rivals: Array.isArray(parsed.rivals) && parsed.rivals.length > 0 ? parsed.rivals : createDefaultRivals(),
+        coolingPurchases: parsed.coolingPurchases ?? 0,
+        officeSnacks: parsed.officeSnacks ?? false,
+        salaryMultiplier: parsed.salaryMultiplier ?? 1.0,
+        dataCentersOwned: parsed.dataCentersOwned ?? 0,
+        stocksOwned: parsed.stocksOwned ?? { helix: 0, pebble: 0, northglass: 0, vesper: 0 },
+        stockPriceTimer: parsed.stockPriceTimer ?? 30,
+        fundingTaken: parsed.fundingTaken ?? {},
+        marketingActiveSeconds: parsed.marketingActiveSeconds ?? 0,
+        marketingCooldownSeconds: parsed.marketingCooldownSeconds ?? 0,
+        payrollTight: parsed.payrollTight ?? false,
       } as GameState;
     }
   } catch {
@@ -197,7 +218,6 @@ export function loadGameState(storage?: StorageLike | null): LoadResult {
     }
   }
 
-  // Main save was missing or corrupt. Try backup key.
   const rawBackup = store.getItem(BACKUP_SAVE_KEY);
   if (rawBackup) {
     const backupParsed = parseState(rawBackup);
@@ -213,7 +233,6 @@ export function loadGameState(storage?: StorageLike | null): LoadResult {
     }
   }
 
-  // Both missing or corrupt: return fresh initial state
   return {
     state: createInitialState(),
     loadedFromBackup: false,

@@ -69,6 +69,65 @@ export function getCoolingPrice(coolingPurchases: number): number {
   return COOLING_UPGRADE_BASE_COST * (1 + coolingPurchases);
 }
 
+// Data Centers from GAME_DESIGN.md
+export interface DataCenterDef {
+  tier: number;
+  name: string;
+  cost: number;
+  powerCapAdded: number;
+  scoreMultiplierAdded: number;
+}
+
+export const DATA_CENTERS: DataCenterDef[] = [
+  { tier: 1, name: 'Colocation Rack', cost: 20000, powerCapAdded: 6, scoreMultiplierAdded: 0.02 },
+  { tier: 2, name: 'Dedicated Pod', cost: 50000, powerCapAdded: 10, scoreMultiplierAdded: 0.02 },
+  { tier: 3, name: 'Regional Facility', cost: 120000, powerCapAdded: 16, scoreMultiplierAdded: 0.02 },
+  { tier: 4, name: 'Hyperscale Campus', cost: 300000, powerCapAdded: 24, scoreMultiplierAdded: 0.02 },
+];
+
+export const DATA_CENTER_UPKEEP_PER_SEC = 0.20;
+export const BASE_SALARY_PER_RESEARCHER_PER_SEC = 0.15;
+export const OFFICE_SNACKS_COST = 5000;
+export const OFFICE_SNACKS_SALARY_MULT = 0.95;
+export const MARKETING_CAMPAIGN_COST = 2000;
+export const MARKETING_CAMPAIGN_DURATION = 180;
+export const MARKETING_CAMPAIGN_COOLDOWN = 180;
+export const MARKETING_HYPE_BOOST = 1.25;
+export const STOCK_MAX_SHARES = 200;
+export const STOCK_SELL_FEE = 0.02; // pays 0.98
+
+export interface FundingDef {
+  id: 'seed' | 'series-a' | 'series-b';
+  name: string;
+  cashAmount: number;
+  salaryMultiplier: number;
+  requiredBestScore: number;
+}
+
+export const FUNDING_ROUNDS: Record<string, FundingDef> = {
+  seed: {
+    id: 'seed',
+    name: 'Seed',
+    cashAmount: 40000,
+    salaryMultiplier: 1.10,
+    requiredBestScore: 0,
+  },
+  'series-a': {
+    id: 'series-a',
+    name: 'Series A',
+    cashAmount: 180000,
+    salaryMultiplier: 1.15,
+    requiredBestScore: 80,
+  },
+  'series-b': {
+    id: 'series-b',
+    name: 'Series B',
+    cashAmount: 750000,
+    salaryMultiplier: 1.20,
+    requiredBestScore: 220,
+  },
+};
+
 // Model sizes
 export interface ModelSizeDefinition {
   id: 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'frontier';
