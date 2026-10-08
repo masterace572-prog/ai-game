@@ -12,6 +12,7 @@ import {
 import { Icon } from './Icon';
 import { Button } from './Button';
 import { Surface } from './Surface';
+import { formatCost } from './format';
 import {
   getUsableGpus,
   getGpuPrice,
@@ -111,6 +112,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             style={{
               fontSize: '13px',
               fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
               color: netIncome >= 0 ? 'var(--success)' : 'var(--danger)',
             }}
           >
@@ -121,19 +123,19 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Revenue</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
               +${grossRevenue.toFixed(2)}/s
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Salaries</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
               -${salaries.toFixed(2)}/s
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>DC Upkeep</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
               -${upkeep.toFixed(2)}/s
             </span>
           </div>
@@ -150,7 +152,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
           }}
         >
           <span>Total Burn Rate</span>
-          <span style={{ fontWeight: 600 }}>${totalBurn.toFixed(2)}/sec</span>
+          <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>${totalBurn.toFixed(2)}/sec</span>
         </div>
       </Surface>
 
@@ -222,7 +224,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             disabled={gameState.cash < gpuPrice}
             style={{ minHeight: '48px', width: '100%' }}
           >
-            <span>Buy GPU — ${gpuPrice.toLocaleString()}</span>
+            <span>Buy GPU — {formatCost(gpuPrice)}</span>
           </Button>
         </Surface>
 
@@ -265,7 +267,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             <span>
               {coolingMaxed
                 ? 'Max Cooling Installed (Stage 5/5)'
-                : `Upgrade Cooling — $${coolingPrice.toLocaleString()}`}
+                : `Upgrade Cooling — ${formatCost(coolingPrice)}`}
             </span>
           </Button>
         </Surface>
@@ -318,7 +320,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             disabled={gameState.cash < researcherPrice}
             style={{ minHeight: '48px', width: '100%' }}
           >
-            <span>Hire Researcher — ${researcherPrice.toLocaleString()}</span>
+            <span>Hire Researcher — {formatCost(researcherPrice)}</span>
           </Button>
         </Surface>
 
@@ -361,7 +363,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             <span>
               {gameState.officeSnacks
                 ? 'Snacks Stocked (5% Discount Active)'
-                : `Buy Snacks — $${OFFICE_SNACKS_COST.toLocaleString()}`}
+                : `Buy Snacks — ${formatCost(OFFICE_SNACKS_COST)}`}
             </span>
           </Button>
         </Surface>
@@ -416,7 +418,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
             <span>
               {dataQualityMaxed
                 ? 'Dataset Quality Maxed (100/100)'
-                : `Clean Data (+${DATA_UPGRADE_AMOUNT} Qual) — $${dataQualityPrice.toLocaleString()}`}
+                : `Clean Data (+${DATA_UPGRADE_AMOUNT} Qual) — ${formatCost(dataQualityPrice)}`}
             </span>
           </Button>
         </Surface>
@@ -472,7 +474,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
                 ? `Campaign Active (${Math.ceil(gameState.marketingActiveSeconds ?? 0)}s)`
                 : marketingCooldown
                 ? `Cooldown (${Math.ceil(gameState.marketingCooldownSeconds ?? 0)}s)`
-                : `Launch Marketing Blitz — $${MARKETING_CAMPAIGN_COST.toLocaleString()}`}
+                : `Launch Marketing Blitz — ${formatCost(MARKETING_CAMPAIGN_COST)}`}
             </span>
           </Button>
         </Surface>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, ArrowUpRight, Lock, Award } from 'lucide-react';
+import { Play, ArrowUpRight, Lock, Award, Cpu } from 'lucide-react';
 import { Icon } from './Icon';
 import { Button } from './Button';
 import { Surface } from './Surface';
@@ -20,6 +20,8 @@ import {
   canTrainModel,
   getTotalScoreMultiplier,
 } from '../game/logic';
+
+import { formatMoney } from './format';
 
 export interface ModelsScreenProps {
   gameState: GameState;
@@ -113,7 +115,9 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
                 <div className="catalog-header">
                   <div className="catalog-title-group">
                     <span className="catalog-name">{def.name}</span>
-                    <span className="catalog-cost">${def.cashCost.toLocaleString()}</span>
+                    <span className="catalog-cost" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatMoney(def.cashCost, true)}
+                    </span>
                   </div>
                   {!unlockStatus.unlocked && (
                     <div className="lock-tag">
@@ -156,7 +160,7 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
                           ? 'Busy'
                           : !trainCheck.canTrain
                           ? trainCheck.reason ?? 'Cannot Train'
-                          : `Train ${def.name} — $${def.cashCost.toLocaleString()}`}
+                          : `Train ${def.name} — ${formatMoney(def.cashCost, true)}`}
                       </span>
                     </Button>
                   </>
@@ -173,9 +177,10 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
           Launched Models ({gameState.launchedModels.length})
         </h2>
         {gameState.launchedModels.length === 0 ? (
-          <Surface className="info-card">
-            <p className="card-empty-text">
-              No models launched yet. Launch your first model to establish your lab on the board and start earning market revenue.
+          <Surface className="info-card" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <Icon icon={Cpu} size={24} color="var(--text-secondary)" aria-hidden="true" />
+            <p className="card-empty-text" style={{ margin: 0 }}>
+              No models launched yet. Tap 'Train' above to begin training your first architecture.
             </p>
           </Surface>
         ) : (

@@ -112,7 +112,10 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  padding: 0 var(--space-8);
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
   outline: none;
   box-shadow: none;
   text-shadow: none;
@@ -569,6 +572,7 @@
   line-height: 20px;
   font-weight: 600;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Empty Tab State */
@@ -638,4 +642,19 @@
 
 .modal-submit-button {
   width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body[data-reduce-motion="true"] *,
+body[data-reduce-motion="true"] *::before,
+body[data-reduce-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
 }

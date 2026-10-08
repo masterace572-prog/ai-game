@@ -9,6 +9,7 @@ import { Icon } from './Icon';
 import { Button } from './Button';
 import { Surface } from './Surface';
 import { Monogram } from './Monogram';
+import { formatCost, formatMoney } from './format';
 import {
   DATA_CENTERS,
   DATA_CENTER_UPKEEP_PER_SEC,
@@ -114,8 +115,8 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                     <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
                       {def.name}
                     </span>
-                    <span style={{ fontWeight: 600, fontSize: '14px', color: isTaken ? 'var(--text-tertiary)' : 'var(--success)' }}>
-                      +${def.cashAmount.toLocaleString()}
+                    <span style={{ fontWeight: 600, fontSize: '14px', color: isTaken ? 'var(--text-tertiary)' : 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                      +{formatCost(def.cashAmount)}
                     </span>
                   </div>
 
@@ -143,7 +144,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                     ? 'Round Closed (Funded)'
                     : !check.canTake
                     ? (check.reason ?? 'Locked')
-                    : `Close ${def.name} — +$${def.cashAmount.toLocaleString()}`}
+                    : `Close ${def.name} — +${formatCost(def.cashAmount)}`}
                 </span>
               </Button>
             </Surface>
@@ -210,8 +211,8 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                     <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
                       Tier {index + 1}: {dc.name}
                     </span>
-                    <span style={{ fontWeight: 600, fontSize: '13px', color: isOwned ? 'var(--text-tertiary)' : 'var(--text)' }}>
-                      {isOwned ? 'Acquired' : `$${dc.cost.toLocaleString()}`}
+                    <span style={{ fontWeight: 600, fontSize: '13px', color: isOwned ? 'var(--text-tertiary)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                      {isOwned ? 'Acquired' : formatCost(dc.cost)}
                     </span>
                   </div>
 
@@ -233,7 +234,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                   style={{ minHeight: '48px', width: '100%' }}
                 >
                   <span>
-                    Acquire {dc.name} — ${dc.cost.toLocaleString()}
+                    Acquire {dc.name} — {formatCost(dc.cost)}
                   </span>
                 </Button>
               )}
@@ -261,8 +262,8 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
           <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
             Tech Equity Portfolio
           </h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Portfolio Value: ${Math.round(totalPortfolioValue).toLocaleString()}
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+            Portfolio Value: {formatMoney(totalPortfolioValue, true)}
           </span>
         </div>
 
@@ -308,10 +309,10 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--text)' }}>
+                  <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
                     ${currentPrice}/sh
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
                     Sell net: ${sellProceeds1}
                   </div>
                 </div>

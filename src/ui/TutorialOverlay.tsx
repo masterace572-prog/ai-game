@@ -87,14 +87,14 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
               background: 'none',
               border: 'none',
               color: 'var(--text-tertiary)',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: 500,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '2px',
-              padding: 'var(--space-1) var(--space-2)',
-              minHeight: '36px',
+              gap: '4px',
+              padding: '0 var(--space-2)',
+              minHeight: '48px',
             }}
           >
             <span>Skip</span>

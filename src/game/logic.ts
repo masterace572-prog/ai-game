@@ -34,6 +34,7 @@ import {
   ALL_EVENT_IDS,
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
+  OFFLINE_CAP_SECONDS,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -1333,4 +1334,219 @@ export function launchModel(state: GameState): GameState {
   };
 
   return checkAchievements(updated).nextState;
+}
+
+export interface OfflineReport {
+  awaySeconds: number;
+  simulatedSeconds: number;
+  capped: boolean;
+  netCash: number;
+  modelsFinished: string[];
+  rivalsLaunched: string[];
+  eventsResolved: string[];
+}
+
+/**
+ * Simulate catch-up when player returns after being away.
+ * - Caps simulation at 8 hours (OFFLINE_CAP_SECONDS).
+ * - Steps in 30-second increments to avoid locking thread.
+ * - Auto-resolves at most 3 events (choice 0).
+ * - Awards night-shift achievement if away >= 1 hour.
+ * - Skips modal if away < 5 seconds.
+ */
+export function simulateOfflineCatchUp(
+  state: GameState,
+  nowMs: number
+): { nextState: GameState; report: OfflineReport | null } {
+  const lastTime = state.savedAt ?? state.lastTickTime ?? nowMs;
+  const awaySeconds = Math.max(0, (nowMs - lastTime) / 1000);
+
+  if (awaySeconds < 5) {
+    return {
+      nextState: { ...state, lastTickTime: nowMs, savedAt: nowMs },
+      report: null,
+    };
+  }
+
+  const simulatedSeconds = Math.min(awaySeconds, OFFLINE_CAP_SECONDS);
+  const isCapped = awaySeconds > OFFLINE_CAP_SECONDS;
+
+  let current = { ...state };
+  const initialCash = current.cash;
+  const modelsFinished: string[] = [];
+  const rivalsLaunchedSet = new Set<string>();
+  const eventsResolved: string[] = [];
+
+  let eventsFiredCount = 0;
+  const stepDuration = 30; // 30-second steps
+  const totalSteps = Math.floor(simulatedSeconds / stepDuration);
+  const remainderSeconds = simulatedSeconds % stepDuration;
+
+  const advanceStep = (stepSec: number) => {
+    // 1. Decay freshness & reputation
+    const freshnessDecay = (FRESHNESS_DECAY_PER_MIN / 60) * stepSec;
+    if (current.bestLaunchedModel) {
+      current.playerFreshness = Math.max(FRESHNESS_FLOOR, (current.playerFreshness ?? 1.0) - freshnessDecay);
+    }
+    const reputationDecay = (REPUTATION_DECAY_PER_MIN / 60) * stepSec;
+    current.reputation = Math.max(0, (current.reputation ?? 0) - reputationDecay);
+
+    // 2. Marketing timers
+    if ((current.marketingActiveSeconds ?? 0) > 0) {
+      current.marketingActiveSeconds = Math.max(0, (current.marketingActiveSeconds ?? 0) - stepSec);
+      if (current.marketingActiveSeconds === 0) {
+        current.marketingCooldownSeconds = MARKETING_CAMPAIGN_COOLDOWN;
+      }
+    } else if ((current.marketingCooldownSeconds ?? 0) > 0) {
+      current.marketingCooldownSeconds = Math.max(0, (current.marketingCooldownSeconds ?? 0) - stepSec);
+    }
+
+    // 3. Stock recalculation
+    current.stockPriceTimer = (current.stockPriceTimer ?? 30) - stepSec;
+    let recalcStock = false;
+    if (current.stockPriceTimer <= 0) {
+      current.stockPriceTimer = 30;
+      recalcStock = true;
+    }
+
+    // 4. Advance rivals
+    current.rivals = (current.rivals ?? []).map((rival) => {
+      let rivalFreshness = Math.max(FRESHNESS_FLOOR, rival.freshness - freshnessDecay);
+      let bestScore = rival.bestScore;
+      let trainingJob = rival.trainingJob;
+      let idleTimer = rival.idleTimer;
+      let stockPrice = recalcStock ? calculateStockPrice(bestScore) : rival.stockPrice;
+
+      if (trainingJob) {
+        const progress = trainingJob.progressSeconds + stepSec;
+        if (progress >= trainingJob.totalSeconds) {
+          rivalFreshness = 1.0;
+          const flatBonus = 1;
+          const randomFactor = 0.95 + Math.random() * 0.10;
+          const calculatedJump = Math.round(bestScore * rival.growthFactor * randomFactor + flatBonus);
+          const maxScore = Math.round(bestScore * 1.40);
+          const newScore = Math.min(maxScore, calculatedJump);
+          if (newScore > bestScore) {
+            bestScore = newScore;
+            stockPrice = calculateStockPrice(bestScore);
+          }
+          trainingJob = null;
+          idleTimer = 5 + Math.random() * 10;
+          rivalsLaunchedSet.add(rival.name);
+        } else {
+          trainingJob = { ...trainingJob, progressSeconds: progress };
+        }
+      } else {
+        idleTimer -= stepSec;
+        if (idleTimer <= 0) {
+          const sizes = rival.preferredSizes;
+          const pickedSize = sizes[Math.floor(Math.random() * sizes.length)] ?? 'tiny';
+          const baseSec = NPC_BASE_SECONDS[pickedSize] ?? 30;
+          trainingJob = {
+            sizeId: pickedSize,
+            progressSeconds: 0,
+            totalSeconds: baseSec * rival.speedMultiplier,
+          };
+        }
+      }
+
+      return {
+        ...rival,
+        bestScore,
+        freshness: rivalFreshness,
+        stockPrice,
+        trainingJob,
+        idleTimer,
+      };
+    });
+
+    // 5. Active timed events
+    current.activeTimedEvents = (current.activeTimedEvents ?? [])
+      .map((ev) => ({ ...ev, remainingSeconds: ev.remainingSeconds - stepSec }))
+      .filter((ev) => ev.remainingSeconds > 0);
+
+    // 6. Check events (at most 3 for the entire offline period)
+    current.eventCooldownTimer = Math.max(0, (current.eventCooldownTimer ?? 0) - stepSec);
+    current.eventRollTimer = (current.eventRollTimer ?? EVENT_CHECK_INTERVAL) - stepSec;
+    if (eventsFiredCount < 3 && current.eventRollTimer <= 0) {
+      current.eventRollTimer = EVENT_CHECK_INTERVAL;
+      const roll = rollEvent(current);
+      if (roll.eventFired && roll.nextState.pendingEvent) {
+        eventsFiredCount += 1;
+        eventsResolved.push(roll.nextState.pendingEvent.title);
+        current = resolveEvent(roll.nextState, 0);
+      }
+    }
+
+    // 7. Market revenue and salaries/upkeep drain
+    const { revenuePerSec } = calculateMarket(current);
+    const totalOutflowPerSec = getTotalOutflowPerSec(current);
+    const netRate = revenuePerSec - totalOutflowPerSec;
+    const netDelta = netRate * stepSec;
+
+    current.cash += netDelta;
+    if (current.cash <= 0) {
+      current.cash = 0;
+      if (netRate < 0) current.payrollTight = true;
+    } else {
+      current.payrollTight = false;
+    }
+    current.lifetimeCashEarned += Math.max(0, revenuePerSec * stepSec);
+
+    // 8. Player training progress
+    if (current.currentTraining) {
+      const newProgress = current.currentTraining.progressSeconds + stepSec;
+      if (newProgress >= current.currentTraining.totalSeconds) {
+        modelsFinished.push(current.currentTraining.proposedName);
+        current.readyModel = {
+          id: current.currentTraining.id,
+          name: current.currentTraining.proposedName,
+          sizeId: current.currentTraining.sizeId,
+          score: current.currentTraining.rolledScore,
+          trainedAt: nowMs,
+          launched: false,
+        };
+        current.usedModelNames = [...current.usedModelNames, current.currentTraining.proposedName];
+        current.currentTraining = null;
+      } else {
+        current.currentTraining = {
+          ...current.currentTraining,
+          progressSeconds: newProgress,
+        };
+      }
+    }
+  };
+
+  for (let i = 0; i < totalSteps; i++) {
+    advanceStep(stepDuration);
+  }
+  if (remainderSeconds > 0) {
+    advanceStep(remainderSeconds);
+  }
+
+  // Check night-shift achievement if away >= 1 hour (3600s)
+  if (awaySeconds >= 3600) {
+    current.achievements = {
+      ...(current.achievements ?? {}),
+      'night-shift': true,
+    };
+  }
+
+  current.lastTickTime = nowMs;
+  current.savedAt = nowMs;
+
+  const { nextState: finalizedState } = checkAchievements(current);
+  const netCash = finalizedState.cash - initialCash;
+
+  const report: OfflineReport = {
+    awaySeconds: Math.round(awaySeconds),
+    simulatedSeconds: Math.round(simulatedSeconds),
+    capped: isCapped,
+    netCash,
+    modelsFinished,
+    rivalsLaunched: Array.from(rivalsLaunchedSet),
+    eventsResolved,
+  };
+
+  return { nextState: finalizedState, report };
 }

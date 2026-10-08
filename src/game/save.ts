@@ -147,6 +147,10 @@ export function createInitialState(
     // Tutorial state (Phase 7)
     tutorialStep: 1,
     tutorialDone: false,
+
+    // Settings (Phase 8)
+    soundEnabled: true,
+    reduceMotion: false,
   };
 }
 
@@ -219,6 +223,10 @@ function parseState(raw: string | null): GameState | null {
         // Tutorial: existing saves not forced back into tutorial
         tutorialStep: parsed.tutorialStep ?? 6,
         tutorialDone: parsed.tutorialDone !== undefined ? parsed.tutorialDone : true,
+
+        // Settings (Phase 8)
+        soundEnabled: parsed.soundEnabled ?? true,
+        reduceMotion: parsed.reduceMotion ?? false,
       } as GameState;
     }
   } catch {

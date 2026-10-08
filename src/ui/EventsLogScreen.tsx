@@ -114,9 +114,9 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
               gap: 'var(--space-2)',
             }}
           >
-            <Icon icon={Clock} size={24} color="var(--text-tertiary)" aria-hidden="true" />
+            <Icon icon={Clock} size={24} color="var(--text-secondary)" aria-hidden="true" />
             <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-              No recorded events this era yet. Market events occur periodically during laboratory operations.
+              No recorded events yet. Tap 'Back to More' above or train models to trigger industry and market events.
             </p>
           </Surface>
         ) : (

@@ -78,7 +78,7 @@ export const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Completed
           </span>
-          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
             {unlockedCount} / 12
           </span>
         </div>
@@ -87,7 +87,7 @@ export const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Score Bonus
           </span>
-          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--primary)' }}>
+          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--primary)', fontVariantNumeric: 'tabular-nums' }}>
             {scoreBonus.toFixed(2)}x
           </span>
         </div>
@@ -96,7 +96,7 @@ export const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Revenue Bonus
           </span>
-          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--success)' }}>
+          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
             {revBonus.toFixed(2)}x
           </span>
         </div>

@@ -21,11 +21,15 @@ import { TeamScreen } from './ui/TeamScreen';
 import { ResearchScreen } from './ui/ResearchScreen';
 import { EventsLogScreen } from './ui/EventsLogScreen';
 import { AchievementsScreen } from './ui/AchievementsScreen';
+import { SettingsScreen } from './ui/SettingsScreen';
 import { MoreScreen } from './ui/MoreScreen';
 import { EventModal } from './ui/EventModal';
 import { TutorialOverlay } from './ui/TutorialOverlay';
 import { Toast } from './ui/Toast';
-import { loadGameState, saveGameState } from './game/save';
+import { OfflineModal } from './ui/OfflineModal';
+import { loadGameState, saveGameState, createInitialState } from './game/save';
+import { playTap, playLaunch, playEvent } from './ui/audio';
+import { formatMoney } from './ui/format';
 import {
   stepGame,
   startTraining,
@@ -49,6 +53,8 @@ import {
   buyResearchNode,
   getTotalScoreMultiplier,
   resolveEvent,
+  simulateOfflineCatchUp,
+  type OfflineReport,
 } from './game/logic';
 import {
   MODEL_SIZES,
@@ -59,17 +65,28 @@ import type { GameState, ModelSizeId, FundingRoundId, ResearchNodeId, Achievemen
 import './styles.css';
 
 export const App: React.FC = () => {
+  const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
+
   const [gameState, setGameState] = useState<GameState>(() => {
     const loaded = loadGameState();
-    return loaded.state;
+    const { nextState, report } = simulateOfflineCatchUp(loaded.state, Date.now());
+    if (report) {
+      setTimeout(() => setOfflineReport(report), 50);
+    }
+    return nextState;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements'>('lab');
+  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings'>('lab');
   const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
+
+  // Sync reduce-motion attribute to document body
+  useEffect(() => {
+    document.body.setAttribute('data-reduce-motion', String(Boolean(gameState.reduceMotion)));
+  }, [gameState.reduceMotion]);
 
   const lastTickTimeRef = useRef<number>(Date.now());
   const lastSaveTimeRef = useRef<number>(Date.now());
@@ -101,7 +118,12 @@ export const App: React.FC = () => {
             const def = ACHIEVEMENTS[firstId];
             if (def) {
               setToastMessage(`Achievement Unlocked: ${def.name} (${def.bonusText})`);
+              playEvent(nextState.soundEnabled ?? true);
             }
+          }
+
+          if (!prevState.pendingEvent && nextState.pendingEvent) {
+            playEvent(nextState.soundEnabled ?? true);
           }
 
           // Auto-advance tutorial if model finished during step 3
@@ -141,6 +163,14 @@ export const App: React.FC = () => {
         stopTimer();
         triggerSave(gameStateRef.current);
       } else {
+        const now = Date.now();
+        const { nextState, report } = simulateOfflineCatchUp(gameStateRef.current, now);
+        setGameState(nextState);
+        gameStateRef.current = nextState;
+        triggerSave(nextState);
+        if (report) {
+          setOfflineReport(report);
+        }
         startTimer();
       }
     };
@@ -175,6 +205,7 @@ export const App: React.FC = () => {
   };
 
   const handleTrainModel = (sizeId: ModelSizeId) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     let nextState = startTraining(gameStateRef.current, sizeId);
     if (nextState !== gameStateRef.current) {
       if (!nextState.tutorialDone && nextState.tutorialStep === 2) {
@@ -189,6 +220,7 @@ export const App: React.FC = () => {
   };
 
   const handleLaunch = () => {
+    playLaunch(gameStateRef.current.soundEnabled ?? true);
     let nextState = launchModel(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       if (!nextState.tutorialDone && nextState.tutorialStep === 4) {
@@ -203,12 +235,14 @@ export const App: React.FC = () => {
   };
 
   const handleResolveEvent = (choiceIndex: 0 | 1) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = resolveEvent(gameStateRef.current, choiceIndex);
     setGameState(nextState);
     triggerSave(nextState);
   };
 
   const handleTutorialNext = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const currentStep = gameState.tutorialStep ?? 1;
     if (currentStep >= 6) {
       const nextState: GameState = {
@@ -234,6 +268,7 @@ export const App: React.FC = () => {
   };
 
   const handleTutorialSkip = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState: GameState = {
       ...gameStateRef.current,
       tutorialDone: true,
@@ -242,8 +277,50 @@ export const App: React.FC = () => {
     triggerSave(nextState);
   };
 
+  // Settings Handlers
+  const handleToggleSound = () => {
+    const nextState: GameState = {
+      ...gameStateRef.current,
+      soundEnabled: !(gameStateRef.current.soundEnabled ?? true),
+    };
+    setGameState(nextState);
+    triggerSave(nextState);
+  };
+
+  const handleToggleReduceMotion = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
+    const nextState: GameState = {
+      ...gameStateRef.current,
+      reduceMotion: !(gameStateRef.current.reduceMotion ?? false),
+    };
+    setGameState(nextState);
+    triggerSave(nextState);
+  };
+
+  const handleImportSave = (jsonText: string): boolean => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || parsed.version !== 1 || typeof parsed.cash !== 'number') {
+        return false;
+      }
+      setGameState(parsed);
+      triggerSave(parsed);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleWipeSave = () => {
+    const fresh = createInitialState(DEFAULT_LAB_NAME, false);
+    setGameState(fresh);
+    triggerSave(fresh);
+    setActiveTab('lab');
+  };
+
   // Economy Actions
   const handleBuyGpu = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyGpu(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -252,6 +329,7 @@ export const App: React.FC = () => {
   };
 
   const handleHireResearcher = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = hireResearcher(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -260,6 +338,7 @@ export const App: React.FC = () => {
   };
 
   const handleBuyCooling = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyCooling(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -268,6 +347,7 @@ export const App: React.FC = () => {
   };
 
   const handleBuySnacks = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyOfficeSnacks(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -276,6 +356,7 @@ export const App: React.FC = () => {
   };
 
   const handleUpgradeDataQuality = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = upgradeDataQuality(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -284,6 +365,7 @@ export const App: React.FC = () => {
   };
 
   const handleBuyDataCenter = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyDataCenter(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -292,6 +374,7 @@ export const App: React.FC = () => {
   };
 
   const handleTakeFunding = (roundId: FundingRoundId) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = takeFunding(roundId, gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -300,6 +383,7 @@ export const App: React.FC = () => {
   };
 
   const handleBuyStock = (rivalId: string, sharesCount: number) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyStock(gameStateRef.current, rivalId, sharesCount);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -308,6 +392,7 @@ export const App: React.FC = () => {
   };
 
   const handleSellStock = (rivalId: string, sharesCount: number) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = sellStock(gameStateRef.current, rivalId, sharesCount);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -316,6 +401,7 @@ export const App: React.FC = () => {
   };
 
   const handleStartMarketing = () => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = startMarketingCampaign(gameStateRef.current);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -324,6 +410,7 @@ export const App: React.FC = () => {
   };
 
   const handleBuyResearch = (nodeId: ResearchNodeId) => {
+    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState = buyResearchNode(gameStateRef.current, nodeId);
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
@@ -357,6 +444,8 @@ export const App: React.FC = () => {
         labName={gameState.labName}
         cash={gameState.cash}
         incomePerSec={netIncome}
+        soundEnabled={gameState.soundEnabled ?? true}
+        onToggleSound={handleToggleSound}
       />
 
       {/* Main Content Area */}
@@ -389,14 +478,15 @@ export const App: React.FC = () => {
             {/* Cash Headline */}
             <section className="cash-section">
               <span className="cash-label">Cash on hand</span>
-              <div className="cash-amount">
-                ${Math.floor(gameState.cash).toLocaleString()}
+              <div className="cash-amount" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {formatMoney(gameState.cash)}
               </div>
               <div className="income-badge">
                 <span
                   className="income-rate"
                   style={{
                     color: netIncome >= 0 ? 'var(--success)' : 'var(--danger)',
+                    fontVariantNumeric: 'tabular-nums',
                   }}
                 >
                   {netIncome >= 0 ? '+' : '-'}${Math.abs(netIncome).toFixed(2)}/s
@@ -445,7 +535,7 @@ export const App: React.FC = () => {
                   e.stopPropagation();
                   setActiveTab('team');
                 }}
-                style={{ minHeight: '36px', height: '36px', padding: '0 var(--space-3)', fontSize: '13px' }}
+                style={{ minHeight: '48px', padding: '0 var(--space-4)', fontSize: '13px' }}
               >
                 <span>Manage</span>
               </Button>
@@ -480,9 +570,12 @@ export const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <p className="card-empty-text">
-                  No models launched yet. Launch your first model to enter the market and compete with rivals.
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                  <Icon icon={Award} size={24} color="var(--text-secondary)" aria-hidden="true" />
+                  <p className="card-empty-text" style={{ margin: 0 }}>
+                    No models launched yet. Tap 'Train Tiny Model' below to start your first run.
+                  </p>
+                </div>
               )}
             </Surface>
 
@@ -672,6 +765,17 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'settings' && (
+          <SettingsScreen
+            gameState={gameState}
+            onBackToMore={() => setActiveTab('more')}
+            onToggleSound={handleToggleSound}
+            onToggleReduceMotion={handleToggleReduceMotion}
+            onImportSave={handleImportSave}
+            onWipeSave={handleWipeSave}
+          />
+        )}
+
         {activeTab === 'more' && (
           <MoreScreen
             gameState={gameState}
@@ -679,6 +783,7 @@ export const App: React.FC = () => {
             onNavigateToResearch={() => setActiveTab('research')}
             onNavigateToEvents={() => setActiveTab('events')}
             onNavigateToAchievements={() => setActiveTab('achievements')}
+            onNavigateToSettings={() => setActiveTab('settings')}
           />
         )}
       </main>
@@ -705,6 +810,12 @@ export const App: React.FC = () => {
           onDismiss={() => setToastMessage(null)}
         />
       )}
+
+      {/* Offline Catch-up Report Modal */}
+      <OfflineModal
+        report={offlineReport}
+        onClose={() => setOfflineReport(null)}
+      />
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />

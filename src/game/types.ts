@@ -170,4 +170,8 @@ export interface GameState {
   // Tutorial state (Phase 7)
   tutorialStep: number;
   tutorialDone: boolean;
+
+  // Settings & Accessibility (Phase 8)
+  soundEnabled: boolean;
+  reduceMotion: boolean;
 }

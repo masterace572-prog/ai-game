@@ -1,20 +1,27 @@
 import React from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
+import { Icon } from './Icon';
+import { formatShort } from './format';
 
 export interface TopBarProps {
   labName: string;
   cash: number;
   incomePerSec: number;
+  soundEnabled?: boolean;
+  onToggleSound?: () => void;
 }
 
 export function formatTopBarCash(amount: number): string {
-  const whole = Math.floor(amount);
-  if (whole < 1000) return `$${whole}`;
-  if (whole < 1000000) return `$${(whole / 1000).toFixed(1)}K`;
-  if (whole < 1000000000) return `$${(whole / 1000000).toFixed(1)}M`;
-  return `$${(whole / 1000000000).toFixed(1)}B`;
+  return `$${formatShort(amount)}`;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ labName, cash, incomePerSec }) => {
+export const TopBar: React.FC<TopBarProps> = ({
+  labName,
+  cash,
+  incomePerSec,
+  soundEnabled = true,
+  onToggleSound,
+}) => {
   return (
     <header
       style={{
@@ -48,36 +55,66 @@ export const TopBar: React.FC<TopBarProps> = ({ labName, cash, incomePerSec }) =
           {labName}
         </span>
       </div>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          fontVariantNumeric: 'tabular-nums',
-          flexShrink: 0,
-        }}
-      >
-        <span
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
+        {onToggleSound && (
+          <button
+            type="button"
+            onClick={onToggleSound}
+            aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '48px',
+              height: '48px',
+              padding: 0,
+            }}
+          >
+            <Icon
+              icon={soundEnabled ? Volume2 : VolumeX}
+              size={20}
+              color="var(--text-secondary)"
+              aria-hidden="true"
+            />
+          </button>
+        )}
+
+        <div
           style={{
-            fontSize: '16px',
-            lineHeight: '20px',
-            fontWeight: 600,
-            color: 'var(--text)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
             fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
           }}
         >
-          {formatTopBarCash(cash)}
-        </span>
-        <span
-          style={{
-            fontSize: '12px',
-            lineHeight: '16px',
-            color: incomePerSec >= 0 ? 'var(--text-secondary)' : 'var(--danger)',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {incomePerSec >= 0 ? '+' : '-'}${Math.abs(incomePerSec).toFixed(1)}/s
-        </span>
+          <span
+            style={{
+              fontSize: '16px',
+              lineHeight: '20px',
+              fontWeight: 600,
+              color: 'var(--text)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {formatTopBarCash(cash)}
+          </span>
+          <span
+            style={{
+              fontSize: '12px',
+              lineHeight: '16px',
+              color: incomePerSec >= 0 ? 'var(--text-secondary)' : 'var(--danger)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {incomePerSec >= 0 ? '+' : '-'}${Math.abs(incomePerSec).toFixed(1)}/s
+          </span>
+        </div>
       </div>
     </header>
   );

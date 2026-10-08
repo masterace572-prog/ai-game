@@ -30,6 +30,7 @@ import {
   resolveEvent,
   checkAchievements,
   getAchievementRevenueMultiplier,
+  simulateOfflineCatchUp,
 } from './logic';
 import { MODEL_SIZES, FRESHNESS_FLOOR } from './balance';
 import * as balanceModule from './balance';
@@ -614,5 +615,63 @@ describe('Phase 7: Events, Achievements, and Tutorial', () => {
     const rolled = rollEvent(state, 0.01, 'hype');
     expect(rolled.eventFired).toBe(false);
     expect(rolled.nextState.pendingEvent).toBeNull();
+  });
+});
+
+describe('Phase 8: Polish, Offline Catch-Up, and Number Formatting', () => {
+  it('simulateOfflineCatchUp skips modal when away < 5 seconds', () => {
+    const now = 1000000;
+    const state = createInitialState('Fast Lab', true);
+    state.savedAt = now - 3000; // 3 seconds away
+
+    const { nextState, report } = simulateOfflineCatchUp(state, now);
+    expect(report).toBeNull();
+    expect(nextState.savedAt).toBe(now);
+  });
+
+  it('simulateOfflineCatchUp caps simulated time at 8 hours and flags capped', () => {
+    const now = 50000000;
+    const state = createInitialState('Sleepy Lab', true);
+    // 10 hours away (36,000s)
+    state.savedAt = now - 36000 * 1000;
+
+    const { report } = simulateOfflineCatchUp(state, now);
+    expect(report).not.toBeNull();
+    expect(report?.capped).toBe(true);
+    expect(report?.awaySeconds).toBe(36000);
+    expect(report?.simulatedSeconds).toBe(28800); // 8 hours
+  });
+
+  it('simulateOfflineCatchUp awards night-shift achievement when away >= 1 hour', () => {
+    const now = 50000000;
+    const state = createInitialState('Night Lab', true);
+    // 1.5 hours away (5400s)
+    state.savedAt = now - 5400 * 1000;
+    expect(state.achievements?.['night-shift']).toBeFalsy();
+
+    const { nextState, report } = simulateOfflineCatchUp(state, now);
+    expect(report).not.toBeNull();
+    expect(nextState.achievements?.['night-shift']).toBe(true);
+  });
+
+  it('simulateOfflineCatchUp finishes training job if time elapsed exceeds job total', () => {
+    const now = 1000000;
+    const state = createInitialState('Training Lab', true);
+    state.currentTraining = {
+      id: 'train-1',
+      proposedName: 'Offline Model Alpha',
+      sizeId: 'tiny',
+      rolledScore: 12,
+      progressSeconds: 5,
+      totalSeconds: 30, // needs 25 more seconds
+    };
+    state.savedAt = now - 60 * 1000; // 60s away
+
+    const { nextState, report } = simulateOfflineCatchUp(state, now);
+    expect(report).not.toBeNull();
+    expect(report?.modelsFinished).toContain('Offline Model Alpha');
+    expect(nextState.currentTraining).toBeNull();
+    expect(nextState.readyModel?.name).toBe('Offline Model Alpha');
+    expect(nextState.readyModel?.score).toBe(12);
   });
 });

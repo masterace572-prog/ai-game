@@ -17,6 +17,7 @@ import {
 import { Icon } from './Icon';
 import { Button } from './Button';
 import { Surface } from './Surface';
+import { formatCost } from './format';
 import {
   RESEARCH_NODES,
   RESEARCH_NODE_ORDER,
@@ -172,10 +173,11 @@ export const ResearchScreen: React.FC<ResearchScreenProps> = ({
                       style={{
                         fontWeight: 600,
                         fontSize: '13px',
+                        fontVariantNumeric: 'tabular-nums',
                         color: isOwned ? 'var(--text-tertiary)' : 'var(--text)',
                       }}
                     >
-                      {isOwned ? 'Researched' : `$${def.cost.toLocaleString()}`}
+                      {isOwned ? 'Researched' : formatCost(def.cost)}
                     </span>
                   </div>
 
@@ -202,7 +204,7 @@ export const ResearchScreen: React.FC<ResearchScreenProps> = ({
                     ? 'Researched'
                     : !check.canBuy
                     ? (check.reason ?? 'Locked')
-                    : `Research ${def.name} — $${def.cost.toLocaleString()}`}
+                    : `Research ${def.name} — ${formatCost(def.cost)}`}
                 </span>
               </Button>
             </Surface>
