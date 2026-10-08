@@ -41,6 +41,7 @@ import {
   STARTING_RESEARCHERS,
   STARTING_DATA_QUALITY,
   STARTING_REPUTATION,
+  RIVALS_ERA_1,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -240,14 +241,14 @@ export function getModelUnlockStatus(
     case 'small':
       return { unlocked: true };
     case 'medium': {
-      const hasLaunchedAny = state.launchedModels.length > 0;
+      const hasLaunchedAny = (state.launchedModels ?? []).length > 0;
       if (!hasLaunchedAny) {
         return { unlocked: false, reason: 'Requires at least 1 model launched' };
       }
       return { unlocked: true };
     }
     case 'large': {
-      const hasLaunchedMedium = state.launchedModels.some((m) => m.sizeId === 'medium');
+      const hasLaunchedMedium = (state.launchedModels ?? []).some((m) => m.sizeId === 'medium');
       if (!hasLaunchedMedium) {
         return { unlocked: false, reason: 'Requires at least 1 Medium launched' };
       }
@@ -724,9 +725,11 @@ export function checkAchievements(state: GameState): {
   const helix = state.rivals?.find((r) => r.id === 'helix');
   const market = calculateMarket(state);
 
+  const launchedList = state.launchedModels ?? [];
+
   const checks: Record<AchievementId, boolean> = {
-    'first-spark': state.launchedModels.length > 0 || state.readyModel !== null || (state.usedModelNames?.length ?? 0) > 0,
-    'on-the-board': state.launchedModels.length > 0,
+    'first-spark': launchedList.length > 0 || state.readyModel !== null || (state.usedModelNames?.length ?? 0) > 0,
+    'on-the-board': launchedList.length > 0,
     'pocket-lab': state.gpus >= 5,
     'full-house': state.researchers >= 5,
     'data-hoarder': state.dataQuality >= 60,
@@ -736,7 +739,7 @@ export function checkAchievements(state: GameState): {
     'public-company': Boolean(state.fundingTaken?.['series-a']),
     'night-shift': Boolean(current['night-shift']),
     'new-era': (state.timesPrestiged ?? 0) >= 1,
-    'frontier': state.launchedModels.some((m) => m.sizeId === 'frontier'),
+    'frontier': launchedList.some((m) => m.sizeId === 'frontier'),
   };
 
   for (const [idStr, condition] of Object.entries(checks)) {
@@ -1336,7 +1339,7 @@ export function launchModel(state: GameState): GameState {
   const updated: GameState = {
     ...state,
     readyModel: null,
-    launchedModels: [launched, ...state.launchedModels],
+    launchedModels: [launched, ...(state.launchedModels ?? [])],
     bestLaunchedModel,
     playerFreshness: 1.0,
     reputation: newReputation,
@@ -1570,73 +1573,43 @@ export function createRivalsForEra(era: number = 1): RivalState[] {
   const safeEra = Math.max(1, era);
   const scale = 1 + 0.15 * (safeEra - 1);
 
-  const helixScore = Math.round(18 * scale);
-  const pebbleScore = Math.round(9 * scale);
-  const northglassScore = Math.round(14 * scale);
-  const vesperScore = Math.round(11 * scale);
+  const rivals: RivalState[] = RIVALS_ERA_1.map((def) => {
+    const bestScore = Math.round(def.startingBestScore * scale);
+    const shortCodeMap: Record<string, string> = {
+      helix: 'HA',
+      pebble: 'PM',
+      northglass: 'NG',
+      vesper: 'VW',
+    };
+    const preferredMap: Record<string, ModelSizeId[]> = {
+      helix: ['medium', 'large'],
+      pebble: ['tiny', 'small'],
+      northglass: ['medium', 'large'],
+      vesper: ['small', 'medium'],
+    };
+    const idleMap: Record<string, number> = {
+      helix: 5,
+      pebble: 3,
+      northglass: 8,
+      vesper: 4,
+    };
 
-  const rivals: RivalState[] = [
-    {
-      id: 'helix',
-      name: 'Helix Atelier',
-      shortCode: 'HA',
-      style: 'Balanced, slightly ahead',
-      bestScore: helixScore,
+    return {
+      id: def.id,
+      name: def.name,
+      shortCode: shortCodeMap[def.id] ?? def.id.slice(0, 2).toUpperCase(),
+      style: def.style,
+      bestScore,
       freshness: 1.0,
-      stockPrice: safeEra === 1 ? 120 : calculateStockPrice(helixScore),
-      speedMultiplier: 1.0,
-      growthFactor: 1.08,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['medium', 'large'],
+      stockPrice: safeEra === 1 ? def.startingStockPrice : calculateStockPrice(bestScore),
+      speedMultiplier: def.speedMultiplier,
+      growthFactor: def.growthFactor,
+      hypeMultiplier: def.hypeMultiplier ?? 1.0,
+      preferredSizes: preferredMap[def.id] ?? ['small'],
       trainingJob: null,
-      idleTimer: 5,
-    },
-    {
-      id: 'pebble',
-      name: 'Pebble Mind',
-      shortCode: 'PM',
-      style: 'Many small models',
-      bestScore: pebbleScore,
-      freshness: 1.0,
-      stockPrice: safeEra === 1 ? 40 : calculateStockPrice(pebbleScore),
-      speedMultiplier: 0.7,
-      growthFactor: 1.04,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['tiny', 'small'],
-      trainingJob: null,
-      idleTimer: 3,
-    },
-    {
-      id: 'northglass',
-      name: 'Northglass',
-      shortCode: 'NG',
-      style: 'Slow, larger models',
-      bestScore: northglassScore,
-      freshness: 1.0,
-      stockPrice: safeEra === 1 ? 80 : calculateStockPrice(northglassScore),
-      speedMultiplier: 1.4,
-      growthFactor: 1.12,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['medium', 'large'],
-      trainingJob: null,
-      idleTimer: 8,
-    },
-    {
-      id: 'vesper',
-      name: 'Vesper Workshop',
-      shortCode: 'VW',
-      style: 'Hype, average models',
-      bestScore: vesperScore,
-      freshness: 1.0,
-      stockPrice: safeEra === 1 ? 55 : calculateStockPrice(vesperScore),
-      speedMultiplier: 1.0,
-      growthFactor: 1.05,
-      hypeMultiplier: 1.15,
-      preferredSizes: ['small', 'medium'],
-      trainingJob: null,
-      idleTimer: 4,
-    },
-  ];
+      idleTimer: idleMap[def.id] ?? 5,
+    };
+  });
 
   if (safeEra >= 2) {
     rivals.push(

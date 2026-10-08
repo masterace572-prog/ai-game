@@ -10,6 +10,7 @@ import {
   STARTING_ERA,
   STARTING_ERA_POINTS,
   DEFAULT_LAB_NAME,
+  RIVALS_ERA_1,
 } from './balance';
 import type { GameState, RivalState } from './types';
 
@@ -27,68 +28,40 @@ export function getDefaultStorage(): StorageLike | null {
 }
 
 export function createDefaultRivals(): RivalState[] {
-  return [
-    {
-      id: 'helix',
-      name: 'Helix Atelier',
-      shortCode: 'HA',
-      style: 'Balanced, slightly ahead',
-      bestScore: 18,
-      freshness: 1.0,
-      stockPrice: 120,
-      speedMultiplier: 1.0,
-      growthFactor: 1.08,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['medium', 'large'],
-      trainingJob: null,
-      idleTimer: 5,
-    },
-    {
-      id: 'pebble',
-      name: 'Pebble Mind',
-      shortCode: 'PM',
-      style: 'Many small models',
-      bestScore: 9,
-      freshness: 1.0,
-      stockPrice: 40,
-      speedMultiplier: 0.7,
-      growthFactor: 1.04,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['tiny', 'small'],
-      trainingJob: null,
-      idleTimer: 3,
-    },
-    {
-      id: 'northglass',
-      name: 'Northglass',
-      shortCode: 'NG',
-      style: 'Slow, larger models',
-      bestScore: 14,
-      freshness: 1.0,
-      stockPrice: 80,
-      speedMultiplier: 1.4,
-      growthFactor: 1.12,
-      hypeMultiplier: 1.0,
-      preferredSizes: ['medium', 'large'],
-      trainingJob: null,
-      idleTimer: 8,
-    },
-    {
-      id: 'vesper',
-      name: 'Vesper Workshop',
-      shortCode: 'VW',
-      style: 'Hype, average models',
-      bestScore: 11,
-      freshness: 1.0,
-      stockPrice: 55,
-      speedMultiplier: 1.0,
-      growthFactor: 1.05,
-      hypeMultiplier: 1.15,
-      preferredSizes: ['small', 'medium'],
-      trainingJob: null,
-      idleTimer: 4,
-    },
-  ];
+  const shortCodeMap: Record<string, string> = {
+    helix: 'HA',
+    pebble: 'PM',
+    northglass: 'NG',
+    vesper: 'VW',
+  };
+  const preferredMap: Record<string, RivalState['preferredSizes']> = {
+    helix: ['medium', 'large'],
+    pebble: ['tiny', 'small'],
+    northglass: ['medium', 'large'],
+    vesper: ['small', 'medium'],
+  };
+  const idleMap: Record<string, number> = {
+    helix: 5,
+    pebble: 3,
+    northglass: 8,
+    vesper: 4,
+  };
+
+  return RIVALS_ERA_1.map((def) => ({
+    id: def.id,
+    name: def.name,
+    shortCode: shortCodeMap[def.id] ?? def.id.slice(0, 2).toUpperCase(),
+    style: def.style,
+    bestScore: def.startingBestScore,
+    freshness: 1.0,
+    stockPrice: def.startingStockPrice,
+    speedMultiplier: def.speedMultiplier,
+    growthFactor: def.growthFactor,
+    hypeMultiplier: def.hypeMultiplier ?? 1.0,
+    preferredSizes: preferredMap[def.id] ?? ['small'],
+    trainingJob: null,
+    idleTimer: idleMap[def.id] ?? 5,
+  }));
 }
 
 export function createInitialState(
