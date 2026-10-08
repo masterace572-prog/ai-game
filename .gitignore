@@ -1,0 +1,13 @@
+node_modules
+dist
+android/local.properties
+android/.gradle
+android/app/build
+android/build
+*.apk
+
+# Ensure gradle wrapper files are not ignored
+!android/gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.properties
+!android/gradlew
+!android/gradlew.bat

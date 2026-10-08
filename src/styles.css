@@ -1,0 +1,109 @@
+:root {
+  --bg-color: #0c1222;
+  --card-bg: #172036;
+  --text-primary: #f4f1ea;
+  --text-muted: #9aa6bd;
+  --color-accent: #f5b942;
+  --color-accent-text: #1a1408;
+  --color-positive: #3ddc97;
+  --color-danger: #ff6b6b;
+  --color-rival: #7aa2ff;
+  --font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --card-radius: 16px;
+  --btn-radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-touch-callout: none;
+  user-select: none;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: var(--card-radius);
+  padding: 24px 20px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.lab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(61, 220, 151, 0.12);
+  color: var(--color-positive);
+  padding: 10px 18px;
+  border-radius: var(--btn-radius);
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid rgba(61, 220, 151, 0.25);
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.version {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
