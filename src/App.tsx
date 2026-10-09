@@ -4,12 +4,13 @@ import {
   Play,
   ArrowUpRight,
   Award,
-  AlertTriangle,
   ChevronLeft,
+  Cpu,
+  Database,
 } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import { Button } from './ui/Button';
-import { Surface } from './ui/Surface';
+import { GameRow } from './ui/GameRow';
 import { TopBar } from './ui/TopBar';
 import { BottomNav, type NavTabId } from './ui/BottomNav';
 import { ProgressBar } from './ui/ProgressBar';
@@ -30,17 +31,13 @@ import { Toast } from './ui/Toast';
 import { OfflineModal } from './ui/OfflineModal';
 import { loadGameState, saveGameState, createInitialState } from './game/save';
 import { playTap, playLaunch, playEvent } from './ui/audio';
-import { formatMoney } from './ui/format';
+import { formatMoney, formatRate } from './ui/format';
 import {
   stepGame,
   startTraining,
   launchModel,
   getUsableGpus,
-  getTinyTrainingTime,
-  getExpectedScoreRange,
   getIncomePerSec,
-  calculateMarket,
-  canTrainModel,
   buyGpu,
   hireResearcher,
   buyCooling,
@@ -52,15 +49,12 @@ import {
   sellStock,
   startMarketingCampaign,
   buyResearchNode,
-  getTotalScoreMultiplier,
-  getAchievementScoreMultiplier,
   resolveEvent,
   simulateOfflineCatchUp,
   prestigeNewEra,
   type OfflineReport,
 } from './game/logic';
 import {
-  MODEL_SIZES,
   DEFAULT_LAB_NAME,
   ACHIEVEMENTS,
 } from './game/balance';
@@ -431,26 +425,64 @@ export const App: React.FC = () => {
   };
 
   // Real market revenue & net income
-  const { income: netIncome, label: incomeLabel } = getIncomePerSec(gameState);
-  const market = calculateMarket(gameState);
+  const { income: netIncome } = getIncomePerSec(gameState);
 
   // Derived values for Lab tab
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
-  const tinyDef = MODEL_SIZES.tiny;
-  const timeMult = gameState.researchOwned?.['cheap-flops'] ? 0.90 : 1.0;
-  const archMult = getTotalScoreMultiplier(gameState);
-  const achScoreMult = getAchievementScoreMultiplier(gameState);
-  const tinyTrainingTime = getTinyTrainingTime(usableGpus, timeMult);
-  const expectedTinyRange = getExpectedScoreRange(
-    tinyDef.baseScore,
-    gameState.dataQuality,
-    gameState.researchers,
-    archMult,
-    gameState.eraPoints ?? 0,
-    achScoreMult
-  );
-  const trainTinyCheck = canTrainModel('tiny', gameState);
-  const isBusy = gameState.currentTraining !== null || gameState.readyModel !== null;
+
+  // Cash display count-up hook (300ms, snaps if reduce motion)
+  const [displayCash, setDisplayCash] = useState(gameState.cash);
+  const displayCashRef = useRef(displayCash);
+  displayCashRef.current = displayCash;
+
+  useEffect(() => {
+    if (gameState.reduceMotion) {
+      setDisplayCash(gameState.cash);
+      return;
+    }
+    const startVal = displayCashRef.current;
+    const endVal = gameState.cash;
+    if (Math.abs(startVal - endVal) < 0.05) {
+      setDisplayCash(endVal);
+      return;
+    }
+
+    const duration = 300;
+    const startTime = performance.now();
+    let animId: number;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - progress, 2);
+      const val = startVal + (endVal - startVal) * eased;
+      setDisplayCash(val);
+      if (progress < 1) {
+        animId = requestAnimationFrame(tick);
+      } else {
+        setDisplayCash(endVal);
+      }
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, [gameState.cash, gameState.reduceMotion]);
+
+  const getNextGoal = (state: GameState): string => {
+    if (!state.fundingTaken?.['series-a']) {
+      return 'Next: score 80 · Series A';
+    }
+    if (!state.fundingTaken?.['series-b']) {
+      return 'Next: score 220 · Series B';
+    }
+    if (!state.researchOwned?.['agent-harness']) {
+      return 'Next: Agent harness';
+    }
+    if ((state.eraPoints ?? 0) === 0 && (state.era || 1) === 1) {
+      return 'Next: score 250 · New Era';
+    }
+    return 'Next: score 250 · New Era';
+  };
 
   return (
     <div className="app-shell">
@@ -466,238 +498,151 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="main-content">
         {activeTab === 'lab' && (
-          <div className="tab-pane">
-            {/* Payroll Alert if cash is 0 */}
-            {gameState.payrollTight && (
-              <Surface
+          <div
+            className="tab-pane"
+            style={{
+              padding: '16px',
+              paddingBottom: '88px',
+              maxWidth: '480px',
+              margin: '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+            }}
+          >
+            {/* 1. Cash (32px) + 2. Income (formatRate) + 3. Next Goal */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div
                 style={{
-                  borderColor: 'var(--warning)',
-                  padding: 'var(--space-3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
+                  fontSize: '32px',
+                  lineHeight: '40px',
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                <Icon icon={AlertTriangle} size={20} color="var(--warning)" aria-hidden="true" />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--warning)' }}>
-                    Payroll is tight
+                {formatMoney(displayCash)}
+              </div>
+
+              <div
+                style={{
+                  fontSize: '16px',
+                  lineHeight: '24px',
+                  fontWeight: 500,
+                  color: netIncome >= 0 ? 'var(--positive)' : 'var(--negative)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {formatRate(netIncome)}
+              </div>
+
+              <div
+                style={{
+                  fontSize: '13px',
+                  lineHeight: '18px',
+                  color: 'var(--text-secondary)',
+                  marginTop: '4px',
+                }}
+              >
+                {getNextGoal(gameState)}
+              </div>
+            </div>
+
+            {/* 4. Active Training Job or Ready to Launch */}
+            {gameState.currentTraining ? (
+              <div
+                style={{
+                  padding: '16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-card)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                    {gameState.currentTraining.proposedName}
                   </span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Cash is $0. Salaries paused at zero floor; debt does not accumulate.
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--text-secondary)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {Math.max(
+                      0,
+                      gameState.currentTraining.totalSeconds -
+                        gameState.currentTraining.progressSeconds
+                    ).toFixed(0)}s left
                   </span>
                 </div>
-              </Surface>
-            )}
-
-            {/* Cash Headline */}
-            <section className="cash-section">
-              <span className="cash-label">Cash on hand</span>
-              <div className="cash-amount" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {formatMoney(gameState.cash)}
+                <ProgressBar
+                  progress={
+                    gameState.currentTraining.progressSeconds /
+                    gameState.currentTraining.totalSeconds
+                  }
+                />
               </div>
-              <div className="income-badge">
+            ) : gameState.readyModel ? (
+              <div
+                style={{
+                  padding: '16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-card)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                  {gameState.readyModel.name}
+                </span>
                 <span
-                  className="income-rate"
                   style={{
-                    color: netIncome >= 0 ? 'var(--success)' : 'var(--danger)',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: 'var(--text)',
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  {netIncome >= 0 ? '+' : '-'}${Math.abs(netIncome).toFixed(2)}/s
-                </span>
-                <span className="income-label">
-                  {market.playerShare > 0
-                    ? `${incomeLabel} (${(market.playerShare * 100).toFixed(1)}% share)`
-                    : 'No market revenue'}
+                  Score {gameState.readyModel.score}
                 </span>
               </div>
-            </section>
+            ) : null}
 
-            {/* Shortcut to Team & Compute */}
-            <Surface
-              onClick={() => setActiveTab('team')}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setActiveTab('team');
-                }
-              }}
+            {/* 5. Four stat rows, not a cramped grid: GPUs, People, Data, Best score. Label left, value right. */}
+            <div
               style={{
-                padding: 'var(--space-3) var(--space-4)',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
+                flexDirection: 'column',
+                borderTop: '1px solid var(--border)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                <Icon icon={Users} size={20} color="var(--primary)" aria-hidden="true" />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                    Team & Compute
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    {usableGpus}/{gameState.gpus} GPUs online · {gameState.researchers} researcher{gameState.researchers === 1 ? '' : 's'}
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  setActiveTab('team');
-                }}
-                style={{ minHeight: '48px', padding: '0 var(--space-4)', fontSize: '13px' }}
-              >
-                <span>Manage</span>
-              </Button>
-            </Surface>
-
-            {/* Best Launched Model Card */}
-            <Surface className="info-card">
-              <div className="card-header">
-                <span className="card-subtitle">Public Model</span>
-                {gameState.bestLaunchedModel && (
-                  <span className="best-badge">
-                    <Icon icon={Award} size={14} aria-hidden="true" />
-                    <span>Best</span>
-                  </span>
-                )}
-              </div>
-              {gameState.bestLaunchedModel ? (
-                <div className="best-model-display">
-                  <div className="best-score-callout">
-                    <span className="best-score-label">Score</span>
-                    <span className="best-score-number">
-                      {gameState.bestLaunchedModel.score}
-                    </span>
-                  </div>
-                  <div className="model-summary">
-                    <div className="model-name">{gameState.bestLaunchedModel.name}</div>
-                    <div className="model-meta">
-                      <span>{MODEL_SIZES[gameState.bestLaunchedModel.sizeId]?.name ?? 'Model'}</span>
-                      <span>·</span>
-                      <span>Freshness {((gameState.playerFreshness ?? 1.0) * 100).toFixed(0)}%</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                  <Icon icon={Award} size={24} color="var(--text-secondary)" aria-hidden="true" />
-                  <p className="card-empty-text" style={{ margin: 0 }}>
-                    No models launched yet. Tap 'Train Tiny Model' below to start your first run.
-                  </p>
-                </div>
-              )}
-            </Surface>
-
-            {/* Training Section */}
-            <section className="section-block">
-              <div className="section-header-row">
-                <h2 className="section-title">Training</h2>
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={() => setActiveTab('models')}
-                >
-                  All models
-                </button>
-              </div>
-
-              {gameState.currentTraining ? (
-                <Surface className="training-card">
-                  <div className="training-header">
-                    <div>
-                      <div className="model-name">{gameState.currentTraining.proposedName}</div>
-                      <div className="card-subtitle">
-                        Training {MODEL_SIZES[gameState.currentTraining.sizeId]?.name ?? 'Model'}
-                      </div>
-                    </div>
-                    <span className="time-remaining">
-                      {Math.max(
-                        0,
-                        gameState.currentTraining.totalSeconds -
-                          gameState.currentTraining.progressSeconds
-                      ).toFixed(1)}
-                      s
-                    </span>
-                  </div>
-                  <ProgressBar
-                    progress={
-                      gameState.currentTraining.progressSeconds /
-                      gameState.currentTraining.totalSeconds
-                    }
-                  />
-                </Surface>
-              ) : gameState.readyModel ? (
-                <Surface className="training-card">
-                  <div className="training-header">
-                    <div>
-                      <div className="model-name">{gameState.readyModel.name}</div>
-                      <div className="card-subtitle">
-                        {MODEL_SIZES[gameState.readyModel.sizeId]?.name} model finished
-                      </div>
-                    </div>
-                    <div className="score-badge">
-                      Score: {gameState.readyModel.score}
-                    </div>
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={handleLaunch}
-                    className="action-button"
-                  >
-                    <Icon icon={ArrowUpRight} size={16} aria-hidden="true" />
-                    <span>Launch Model</span>
-                  </Button>
-                </Surface>
-              ) : (
-                <Surface className="training-card">
-                  <div className="training-header">
-                    <div>
-                      <div className="model-name">Tiny Model</div>
-                      <div className="card-subtitle">Fast starter model</div>
-                    </div>
-                  </div>
-
-                  <div className="training-stats">
-                    <div className="stat-item">
-                      <span className="stat-label">Cost</span>
-                      <span className="stat-value">${tinyDef.cashCost.toLocaleString()}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">Est. Time</span>
-                      <span className="stat-value">~{Math.round(tinyTrainingTime)}s</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="stat-label">Exp. Score</span>
-                      <span className="stat-value">
-                        {expectedTinyRange.min}–{expectedTinyRange.max}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="primary"
-                    onClick={() => handleTrainModel('tiny')}
-                    disabled={!trainTinyCheck.canTrain || isBusy}
-                    className="action-button"
-                  >
-                    <Icon icon={Play} size={16} aria-hidden="true" />
-                    <span>
-                      {isBusy
-                        ? 'Busy'
-                        : !trainTinyCheck.canTrain
-                        ? trainTinyCheck.reason ?? 'Cannot Train'
-                        : `Train Tiny Model — $${tinyDef.cashCost.toLocaleString()}`}
-                    </span>
-                  </Button>
-                </Surface>
-              )}
-            </section>
+              <GameRow
+                icon={Cpu}
+                title="GPUs"
+                value={`${usableGpus}/${gameState.gpus}`}
+              />
+              <GameRow
+                icon={Users}
+                title="People"
+                value={gameState.researchers}
+              />
+              <GameRow
+                icon={Database}
+                title="Data"
+                value={gameState.dataQuality}
+              />
+              <GameRow
+                icon={Award}
+                title="Best score"
+                value={gameState.bestLaunchedModel?.score ?? '—'}
+              />
+            </div>
           </div>
         )}
 
@@ -840,6 +785,65 @@ export const App: React.FC = () => {
         report={offlineReport}
         onClose={() => setOfflineReport(null)}
       />
+
+      {/* Sticky bar just above the bottom nav for Lab tab */}
+      {activeTab === 'lab' && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+            left: 0,
+            right: 0,
+            maxWidth: '480px',
+            margin: '0 auto',
+            padding: '8px 16px',
+            background: 'var(--bg)',
+            borderTop: '1px solid var(--border)',
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: '64px',
+            boxSizing: 'border-box',
+          }}
+        >
+          {gameState.readyModel ? (
+            <Button
+              variant="primary"
+              onClick={handleLaunch}
+              style={{ width: '100%', height: '48px' }}
+            >
+              <ArrowUpRight size={16} strokeWidth={1.75} />
+              <span>Launch</span>
+            </Button>
+          ) : gameState.currentTraining ? (
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text)' }}>
+                <span style={{ fontWeight: 600 }}>{gameState.currentTraining.proposedName}</span>
+                <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {Math.max(
+                    0,
+                    gameState.currentTraining.totalSeconds - gameState.currentTraining.progressSeconds
+                  ).toFixed(0)}s left
+                </span>
+              </div>
+              <ProgressBar
+                progress={
+                  gameState.currentTraining.progressSeconds / gameState.currentTraining.totalSeconds
+                }
+              />
+            </div>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => setActiveTab('models')}
+              style={{ width: '100%', height: '48px' }}
+            >
+              <Play size={16} strokeWidth={1.75} />
+              <span>Train</span>
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Surface } from './Surface';
 import { Monogram } from './Monogram';
 import {
   calculateMarket,
@@ -7,6 +6,7 @@ import {
   getRivalAppeal,
 } from '../game/logic';
 import { MODEL_SIZES } from '../game/balance';
+import { formatRate } from './format';
 import type { GameState } from '../game/types';
 
 export interface MarketScreenProps {
@@ -21,8 +21,7 @@ interface LeaderboardEntry {
   bestScore: number;
   appeal: number;
   sharePercent: number;
-  subtitle: string;
-  trainingStatus?: string;
+  statusLine?: string;
 }
 
 export function getLabMonogram(name: string): string {
@@ -40,11 +39,14 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
   const market = calculateMarket(gameState);
   const playerAppeal = getPlayerAppeal(gameState);
 
-  // Build leaderboard entries
   const entries: LeaderboardEntry[] = [];
 
-  // 1. Player
+  // Player entry
   const playerShare = market.totalAppeal > 0 ? (playerAppeal / market.totalAppeal) * 100 : 0;
+  const playerStatus = gameState.currentTraining
+    ? `Training ${MODEL_SIZES[gameState.currentTraining.sizeId]?.name ?? 'Model'}`
+    : undefined;
+
   entries.push({
     id: 'player',
     isPlayer: true,
@@ -53,24 +55,16 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
     bestScore: gameState.bestLaunchedModel?.score ?? 0,
     appeal: playerAppeal,
     sharePercent: playerShare,
-    subtitle: gameState.bestLaunchedModel
-      ? `${gameState.bestLaunchedModel.name} (${MODEL_SIZES[gameState.bestLaunchedModel.sizeId]?.name ?? 'Model'})`
-      : 'No model launched',
-    trainingStatus: gameState.currentTraining
-      ? `Training ${MODEL_SIZES[gameState.currentTraining.sizeId]?.name ?? 'Model'}`
-      : undefined,
+    statusLine: playerStatus,
   });
 
-  // 2. Rivals
+  // Rivals
   for (const rival of gameState.rivals ?? []) {
     const appeal = getRivalAppeal(rival);
     const share = market.totalAppeal > 0 ? (appeal / market.totalAppeal) * 100 : 0;
-    const trainingDesc = rival.trainingJob
-      ? `Training ${MODEL_SIZES[rival.trainingJob.sizeId]?.name ?? 'Model'} (~${Math.max(
-          0,
-          rival.trainingJob.totalSeconds - rival.trainingJob.progressSeconds
-        ).toFixed(0)}s)`
-      : rival.style;
+    const rivalStatus = rival.trainingJob
+      ? `Training ${MODEL_SIZES[rival.trainingJob.sizeId]?.name ?? 'Model'}`
+      : undefined;
 
     entries.push({
       id: rival.id,
@@ -80,8 +74,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
       bestScore: rival.bestScore,
       appeal,
       sharePercent: share,
-      subtitle: trainingDesc,
-      trainingStatus: rival.trainingJob ? 'Training' : 'Idle',
+      statusLine: rivalStatus,
     });
   }
 
@@ -92,92 +85,209 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
   });
 
   return (
-    <div className="tab-pane">
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
       <h1 className="screen-title">Market</h1>
 
-      {/* Market Share & Revenue Card */}
-      <Surface className="market-summary-card">
-        <div className="market-stat-header">
-          <div>
-            <span className="card-subtitle">Market Share</span>
-            <div className="market-share-number">
+      {/* One Summary Block */}
+      <div
+        style={{
+          padding: '16px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-card)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Market Share</span>
+            <span
+              style={{
+                fontSize: '28px',
+                lineHeight: '34px',
+                fontWeight: 600,
+                color: 'var(--text)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
               {(market.playerShare * 100).toFixed(1)}%
-            </div>
+            </span>
           </div>
-          <div className="market-revenue-header">
-            <span className="card-subtitle">Revenue</span>
-            <div className="market-revenue-number">
-              +${market.revenuePerSec.toFixed(2)}/s
-            </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Revenue</span>
+            <span
+              style={{
+                fontSize: '20px',
+                lineHeight: '28px',
+                fontWeight: 600,
+                color: market.revenuePerSec > 0 ? 'var(--positive)' : 'var(--text)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {formatRate(market.revenuePerSec)}
+            </span>
           </div>
         </div>
 
-        {/* Market Share Bar */}
-        <div className="market-bar-track">
+        {/* Share Bar */}
+        <div
+          style={{
+            height: '4px',
+            borderRadius: '2px',
+            background: 'var(--surface-2)',
+            overflow: 'hidden',
+          }}
+        >
           <div
-            className="market-bar-fill"
-            style={{ width: `${Math.min(100, market.playerShare * 100)}%` }}
+            style={{
+              height: '100%',
+              width: `${Math.min(100, Math.max(0, market.playerShare * 100))}%`,
+              background: 'var(--accent)',
+              borderRadius: '2px',
+              transition: 'width var(--duration) var(--ease)',
+            }}
           />
         </div>
 
-        {/* 65% Subscriptions / 35% API Split */}
-        <div className="revenue-split-grid">
-          <div className="split-item">
-            <div className="split-label-group">
-              <span className="split-label">Subscriptions</span>
-              <span className="split-pct">65%</span>
-            </div>
-            <span className="split-amount">
-              +${market.subscriptionRevenue.toFixed(2)}/s
-            </span>
-          </div>
-          <div className="split-item">
-            <div className="split-label-group">
-              <span className="split-label">API</span>
-              <span className="split-pct">35%</span>
-            </div>
-            <span className="split-amount">
-              +${market.apiRevenue.toFixed(2)}/s
-            </span>
-          </div>
+        {/* Single Meta Line */}
+        <div style={{ fontSize: '12px', lineHeight: '16px', color: 'var(--text-secondary)' }}>
+          65% subs · 35% API
         </div>
-      </Surface>
+      </div>
 
-      {/* Leaderboard Section */}
-      <section className="section-block">
-        <h2 className="section-title">Leaderboard</h2>
-        <div className="leaderboard-list">
-          {entries.map((entry, index) => {
-            const rank = index + 1;
-            return (
-              <Surface
-                key={entry.id}
-                className={`leaderboard-row ${entry.isPlayer ? 'player-row' : ''}`.trim()}
+      {/* Leaderboard Rows */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        {entries.map((entry, index) => {
+          const rank = index + 1;
+          return (
+            <div
+              key={entry.id}
+              style={{
+                minHeight: '56px',
+                padding: '12px 0',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <span
+                style={{
+                  width: '20px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-tertiary)',
+                  fontVariantNumeric: 'tabular-nums',
+                  textAlign: 'center',
+                  flexShrink: 0,
+                }}
               >
-                <div className="rank-number">{rank}</div>
+                {rank}
+              </span>
+
+              <div style={{ flexShrink: 0 }}>
                 <Monogram code={entry.shortCode} />
-                <div className="leaderboard-info">
-                  <div className="leaderboard-name-row">
-                    <span className="leaderboard-name">{entry.name}</span>
-                    {entry.isPlayer && <span className="you-badge">You</span>}
-                  </div>
-                  <span className="card-subtitle">{entry.subtitle}</span>
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    style={{
+                      fontSize: '16px',
+                      fontWeight: 500,
+                      color: 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {entry.name}
+                  </span>
+                  {entry.isPlayer && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        padding: '1px 5px',
+                        borderRadius: 'var(--radius-control)',
+                        background: 'var(--surface-2)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      You
+                    </span>
+                  )}
                 </div>
-                <div className="leaderboard-metrics">
-                  <div className="metric-col">
-                    <span className="metric-label">Score</span>
-                    <span className="metric-val">{entry.bestScore}</span>
-                  </div>
-                  <div className="metric-col">
-                    <span className="metric-label">Share</span>
-                    <span className="metric-val">{entry.sharePercent.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </Surface>
-            );
-          })}
-        </div>
-      </section>
+                {entry.statusLine && (
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginTop: '2px',
+                    }}
+                  >
+                    {entry.statusLine}
+                  </span>
+                )}
+              </div>
+
+              <div
+                style={{
+                  flexShrink: 0,
+                  textAlign: 'right',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  Score {entry.bestScore}
+                </span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    fontVariantNumeric: 'tabular-nums',
+                    marginTop: '2px',
+                  }}
+                >
+                  {entry.sharePercent.toFixed(1)}% share
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

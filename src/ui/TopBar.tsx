@@ -1,7 +1,7 @@
 import React from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 import { Icon } from './Icon';
-import { formatShort } from './format';
+import { formatShort, formatRate } from './format';
 
 export interface TopBarProps {
   labName: string;
@@ -112,7 +112,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {incomePerSec >= 0 ? '+' : '-'}${Math.abs(incomePerSec).toFixed(1)}/s
+            {formatRate(incomePerSec)}
           </span>
         </div>
       </div>

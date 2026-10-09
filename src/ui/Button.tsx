@@ -10,8 +10,11 @@ export const Button: React.FC<ButtonProps> = ({
   children,
   className = '',
   style,
+  disabled,
   ...props
 }) => {
+  const effectiveVariant = disabled ? 'secondary' : variant;
+
   const baseStyle: React.CSSProperties = {
     height: '48px',
     borderRadius: 'var(--radius-control)',
@@ -23,14 +26,15 @@ export const Button: React.FC<ButtonProps> = ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 'var(--space-8)',
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.6 : 1,
     boxShadow: 'none',
     textShadow: 'none',
     outline: 'none',
     transition: 'background-color var(--duration) var(--ease), border-color var(--duration) var(--ease)',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
-    ...(variant === 'primary'
+    ...(effectiveVariant === 'primary'
       ? {
           backgroundColor: 'var(--accent)',
           color: 'var(--on-accent)',
@@ -38,7 +42,7 @@ export const Button: React.FC<ButtonProps> = ({
         }
       : {
           backgroundColor: 'transparent',
-          color: 'var(--text)',
+          color: disabled ? 'var(--text-tertiary)' : 'var(--text)',
           border: '1px solid var(--border-strong)',
         }),
     ...style,
@@ -46,8 +50,9 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`btn btn-${variant} ${className}`.trim()}
+      className={`btn btn-${effectiveVariant} ${className}`.trim()}
       style={baseStyle}
+      disabled={disabled}
       {...props}
     >
       {children}

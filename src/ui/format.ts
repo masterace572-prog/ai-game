@@ -34,10 +34,17 @@ export function formatShort(val: number): string {
 }
 
 export function formatMoney(val: number, isCost: boolean = false): string {
-  if (isCost && val < 100000) {
-    return `$${formatInteger(val)}`;
+  const rounded = Math.round(val * 100) / 100;
+  if (isCost && rounded < 100000) {
+    if (rounded % 1 !== 0) {
+      return `$${rounded.toFixed(2)}`;
+    }
+    return `$${formatInteger(rounded)}`;
   }
-  return `$${formatShort(val)}`;
+  if (rounded < 1000 && rounded % 1 !== 0) {
+    return `$${rounded.toFixed(2)}`;
+  }
+  return `$${formatShort(rounded)}`;
 }
 
 export function formatCost(val: number): string {
@@ -48,8 +55,38 @@ export function formatCost(val: number): string {
   return `$${formatShort(rounded)}`;
 }
 
+export function formatSellPrice(val: number): string {
+  const rounded = Math.round(val * 100) / 100;
+  if (rounded < 1000) {
+    const s = rounded.toFixed(2);
+    return `$${s.endsWith('.00') ? s.slice(0, -3) : s}`;
+  }
+  return `$${formatShort(rounded)}`;
+}
+
+function formatAtMostTwoDecimals(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  const s = rounded.toFixed(2);
+  if (s.endsWith('.00')) return s.slice(0, -3);
+  if (s.endsWith('0')) return s.slice(0, -1);
+  return s;
+}
+
 export function formatRate(val: number): string {
   const sign = val >= 0 ? '+' : '-';
   const abs = Math.abs(val);
-  return `${sign}$${abs.toFixed(2)}/s`;
+
+  if (abs < 1000) {
+    return `${sign}$${abs.toFixed(2)}/s`;
+  }
+  if (abs < 1000000) {
+    const k = abs / 1000;
+    return `${sign}$${formatAtMostTwoDecimals(k)}K/s`;
+  }
+  if (abs < 1000000000) {
+    const m = abs / 1000000;
+    return `${sign}$${formatAtMostTwoDecimals(m)}M/s`;
+  }
+  const b = abs / 1000000000;
+  return `${sign}$${formatAtMostTwoDecimals(b)}B/s`;
 }

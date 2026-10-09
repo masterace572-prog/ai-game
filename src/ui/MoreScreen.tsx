@@ -6,12 +6,13 @@ import {
   Award,
   Settings,
   History,
-  Info,
-  ChevronRight,
+  Cpu,
+  Database,
+  Star,
+  Globe,
 } from 'lucide-react';
-import { Icon } from './Icon';
-import { Surface } from './Surface';
-import { getUsableGpus, canPrestigeNewEra } from '../game/logic';
+import { GameRow } from './GameRow';
+import { getUsableGpus } from '../game/logic';
 import type { GameState } from '../game/types';
 
 export interface MoreScreenProps {
@@ -34,396 +35,103 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
   onNavigateToNewEra,
 }) => {
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
-  const canPrestige = canPrestigeNewEra(gameState);
 
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Header */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          More
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Laboratory management, operational teams, and system overview.
-        </p>
-      </div>
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      <h1 className="screen-title">More</h1>
 
-      {/* Navigation Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        {/* Research & Development */}
-        <Surface
+      {/* Navigation Menu */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <GameRow
+          icon={FlaskConical}
+          title="Research"
+          showChevron
           onClick={onNavigateToResearch}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToResearch();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={FlaskConical} size={20} color="var(--primary)" aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                Research & Development
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Optimizers, cheap flops, recruiter, brand studio, and agent harness
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
-
-        {/* Team & Compute */}
-        <Surface
+        />
+        <GameRow
+          icon={Users}
+          title="Team"
+          showChevron
           onClick={onNavigateToTeam}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToTeam();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={Users} size={20} color="var(--primary)" aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                Team & Compute
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                GPUs, researchers, cooling, snacks, and data quality
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
-
-        {/* Events Log */}
-        <Surface
+        />
+        <GameRow
+          icon={Bell}
+          title="Events"
+          showChevron
           onClick={onNavigateToEvents}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToEvents();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={Bell} size={20} color="var(--primary)" aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                Events Log
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Chronicle of market shocks, viral demos, and lab incidents
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
-
-        {/* Achievements */}
-        <Surface
+        />
+        <GameRow
+          icon={Award}
+          title="Achievements"
+          showChevron
           onClick={onNavigateToAchievements}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToAchievements();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={Award} size={20} color="var(--primary)" aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                Achievements
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Permanent milestones and persistent multiplier bonuses
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
-
-        {/* New Era (Prestige) */}
-        <Surface
+        />
+        <GameRow
+          icon={History}
+          title="New Era"
+          showChevron
           onClick={onNavigateToNewEra}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToNewEra();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-            borderColor: canPrestige ? 'var(--primary)' : 'var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={History} size={20} color={canPrestige ? 'var(--primary)' : 'var(--text-secondary)'} aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                  New Era
-                </span>
-                {canPrestige && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      backgroundColor: 'var(--surface-2)',
-                      border: '1px solid var(--primary)',
-                      color: 'var(--primary)',
-                      padding: '1px 6px',
-                      borderRadius: 'var(--radius-control)',
-                    }}
-                  >
-                    Ready
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Advance operational era and claim permanent Era Points
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
-
-        {/* Settings */}
-        <Surface
+        />
+        <GameRow
+          icon={Settings}
+          title="Settings"
+          showChevron
           onClick={onNavigateToSettings}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onNavigateToSettings();
-            }
-          }}
-          style={{
-            padding: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-            minHeight: '64px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--surface-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon icon={Settings} size={20} color="var(--primary)" aria-hidden="true" />
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                Settings
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Sound, reduce motion, export/import save data
-              </div>
-            </div>
-          </div>
-          <Icon icon={ChevronRight} size={20} color="var(--text-tertiary)" aria-hidden="true" />
-        </Surface>
+        />
       </div>
 
-      {/* Lab Overview Card */}
-      <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <Icon icon={Info} size={18} color="var(--text-secondary)" aria-hidden="true" />
-          <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-            Lab Overview
-          </span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Lab Name</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.labName}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Current Era</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              Era {gameState.era} (Foundations)
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Active Compute</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {usableGpus} / {gameState.gpus} GPUs
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Power Cap</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.powerCap} Units
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Researchers</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.researchers} Headcount
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Data Quality</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.dataQuality} / 100
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Models Launched</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.launchedModels.length}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Best Score</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-              {gameState.bestLaunchedModel?.score ?? 'None'}
-            </span>
-          </div>
-        </div>
-      </Surface>
-
-      {/* Version Information */}
-      <div style={{ textAlign: 'center', padding: 'var(--space-4) 0', color: 'var(--text-tertiary)', fontSize: '12px' }}>
-        Model Foundry v0.1.1 · Phase 5: The Economy
+      {/* Plain Stats List */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <GameRow
+          icon={Cpu}
+          title="GPUs"
+          value={`${usableGpus}/${gameState.gpus}`}
+        />
+        <GameRow
+          icon={Users}
+          title="People"
+          value={gameState.researchers}
+        />
+        <GameRow
+          icon={Database}
+          title="Data"
+          value={gameState.dataQuality}
+        />
+        <GameRow
+          icon={Star}
+          title="Score"
+          value={gameState.bestLaunchedModel?.score ?? '—'}
+        />
+        <GameRow
+          icon={Globe}
+          title="Era"
+          value={gameState.era}
+        />
       </div>
     </div>
   );
 };
+
 export default MoreScreen;

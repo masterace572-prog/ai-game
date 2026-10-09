@@ -33,11 +33,12 @@
 
 /* Screen Title */
 .screen-title {
-  font-size: 28px;
-  line-height: 34px;
+  font-size: 22px;
+  line-height: 28px;
   font-weight: 600;
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 /* Cash Section */

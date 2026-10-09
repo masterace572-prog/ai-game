@@ -9,7 +9,7 @@ import { Icon } from './Icon';
 import { Button } from './Button';
 import { Surface } from './Surface';
 import { Monogram } from './Monogram';
-import { formatCost, formatMoney } from './format';
+import { formatCost, formatMoney, formatSellPrice } from './format';
 import {
   DATA_CENTERS,
   DATA_CENTER_UPKEEP_PER_SEC,
@@ -310,10 +310,10 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
 
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                    ${currentPrice}/sh
+                    {formatCost(currentPrice)}/sh
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
-                    Sell net: ${sellProceeds1}
+                    Sell net: {formatSellPrice(sellProceeds1)}
                   </div>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                   disabled={!canBuy1}
                   style={{ minHeight: '48px', fontSize: '13px' }}
                 >
-                  <span>Buy 1 (${currentPrice})</span>
+                  <span>Buy 1 ({formatCost(currentPrice)})</span>
                 </Button>
 
                 <Button
@@ -335,7 +335,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                   disabled={!canBuy10}
                   style={{ minHeight: '48px', fontSize: '13px' }}
                 >
-                  <span>Buy {buy10Count} (${buy10Cost})</span>
+                  <span>Buy {buy10Count} ({formatCost(buy10Cost)})</span>
                 </Button>
 
                 <Button
@@ -344,7 +344,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                   disabled={!canSell1}
                   style={{ minHeight: '48px', fontSize: '13px' }}
                 >
-                  <span>Sell 1 (+${sellProceeds1})</span>
+                  <span>Sell 1 (+{formatSellPrice(sellProceeds1)})</span>
                 </Button>
 
                 <Button
@@ -353,7 +353,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
                   disabled={!canSellAll}
                   style={{ minHeight: '48px', fontSize: '13px' }}
                 >
-                  <span>Sell All (+${sellProceedsAll})</span>
+                  <span>Sell All (+{formatSellPrice(sellProceedsAll)})</span>
                 </Button>
               </div>
             </Surface>

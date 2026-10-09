@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { formatShort, formatCost, formatMoney, formatInteger } from './format';
+import {
+  formatShort,
+  formatCost,
+  formatMoney,
+  formatInteger,
+  formatRate,
+  formatSellPrice,
+} from './format';
 
 describe('format helper (en-US locale, tabular compliance)', () => {
   it('formats numbers under 1000 verbatim without suffix', () => {
@@ -40,5 +47,21 @@ describe('format helper (en-US locale, tabular compliance)', () => {
   it('formatMoney handles exact vs short correctly', () => {
     expect(formatMoney(25000, true)).toBe('$25,000');
     expect(formatMoney(25000, false)).toBe('$25K');
+  });
+
+  it('formats float sell price with at most 2 decimals', () => {
+    expect(formatSellPrice(96.03999999999)).toBe('$96.04');
+    expect(formatMoney(96.03999999999)).toBe('$96.04');
+    expect(formatMoney(96.03999999999, true)).toBe('$96.04');
+    expect(formatSellPrice(40)).toBe('$40');
+  });
+
+  it('formats rates with sign, dollar, at most 2 decimals and K/M/B suffixes', () => {
+    expect(formatRate(1.5)).toBe('+$1.50/s');
+    expect(formatRate(-0.35)).toBe('-$0.35/s');
+    expect(formatRate(0)).toBe('+$0.00/s');
+    expect(formatRate(1200)).toBe('+$1.2K/s');
+    expect(formatRate(1250)).toBe('+$1.25K/s');
+    expect(formatRate(-3400000)).toBe('-$3.4M/s');
   });
 });
