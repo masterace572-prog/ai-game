@@ -20,8 +20,8 @@ import {
 } from './balance';
 
 describe('Balance constants and formulas (v2)', () => {
-  it('app version is 0.3.0 and default lab name is Claude', () => {
-    expect(APP_VERSION).toBe('0.3.0');
+  it('app version is 0.4.0 and default lab name is Claude', () => {
+    expect(APP_VERSION).toBe('0.4.0');
     expect(DEFAULT_LAB_NAME).toBe('Claude');
   });
 

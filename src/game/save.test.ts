@@ -44,6 +44,35 @@ describe('Save / Load helpers (v2)', () => {
     expect(loaded.state.labName).toBe('Claude');
   });
 
+  it('loads earlier v2 save without v0.4.0 fields safely with defaults', () => {
+    const storage = new MemoryStorage();
+    // Simulate v2 save from v0.3.0 without managers/upgrades
+    const oldV2Data = JSON.stringify({
+      version: 2,
+      savedAt: Date.now(),
+      cash: 5000,
+      lifetimeEarned: 10000,
+      modelStep: 3,
+      products: { chat: 25 },
+      rivals: [],
+      people: { engineers: 2, sales: 1, researchers: 0 },
+      gpuClusters: 1,
+    });
+    storage.setItem(SAVE_KEY, oldV2Data);
+
+    const loaded = loadGameState(storage);
+    expect(loaded.corrupted).toBe(false);
+    expect(loaded.state.version).toBe(2);
+    expect(loaded.state.cash).toBe(5000);
+    expect(loaded.state.products.chat).toBe(25);
+    // Safe defaults for v0.4.0
+    expect(loaded.state.managers).toEqual({});
+    expect(loaded.state.managerAutoBuy).toEqual({});
+    expect(loaded.state.upgrades).toEqual({});
+    expect(loaded.state.buyAmount).toBe('1');
+    expect(loaded.state.autoBuyAccumulator).toBe(0);
+  });
+
   it('migrates v1 save by backing it up to v1.backup and starting fresh v2 game', () => {
     const storage = new MemoryStorage();
     const oldV1Data = JSON.stringify({

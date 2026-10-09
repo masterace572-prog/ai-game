@@ -5,6 +5,11 @@ import {
   BUILDINGS,
   FUNDING_ROUNDS,
   STOCK_MAX_SHARES,
+  MILESTONES,
+  MANAGERS,
+  MANAGER_ORDER,
+  UPGRADES,
+  ALL_UPGRADE_IDS,
   getProductMilestoneMultiplier,
   getNextProductMilestone,
   getProductNextCost,
@@ -26,9 +31,13 @@ import {
   getStockPrice,
   getStockSellProceeds,
   getTapEarnAmount,
+  getProductManagerMultiplier,
+  getProductUpgradesMultiplier,
+  getGlobalUpgradesMultiplier,
+  getTrainingUpgradesMultiplier,
   RIVAL_DEFINITIONS,
 } from './balance';
-import type { GameState, ProductId, RivalState, TrainingJob } from './types';
+import type { GameState, ProductId, RivalState, TrainingJob, BuyAmount } from './types';
 
 export {
   CLAUDE_LADDER,
@@ -37,6 +46,11 @@ export {
   BUILDINGS,
   FUNDING_ROUNDS,
   STOCK_MAX_SHARES,
+  MILESTONES,
+  MANAGERS,
+  MANAGER_ORDER,
+  UPGRADES,
+  ALL_UPGRADE_IDS,
   getProductMilestoneMultiplier,
   getNextProductMilestone,
   getProductNextCost,
@@ -58,7 +72,100 @@ export {
   getStockPrice,
   getStockSellProceeds,
   getTapEarnAmount,
+  getProductManagerMultiplier,
+  getProductUpgradesMultiplier,
+  getGlobalUpgradesMultiplier,
+  getTrainingUpgradesMultiplier,
 };
+
+/**
+ * Geometric cost calculations for bulk buying
+ */
+export function calculateGeometricCost(
+  baseCost: number,
+  growth: number,
+  currentLevel: number,
+  count: number
+): number {
+  if (count <= 0) return 0;
+  if (Math.abs(growth - 1) < 1e-9) {
+    return Math.round(count * baseCost * 100) / 100;
+  }
+  const firstTerm = baseCost * Math.pow(growth, currentLevel);
+  const sum = (firstTerm * (Math.pow(growth, count) - 1)) / (growth - 1);
+  return Math.round(sum * 100) / 100;
+}
+
+export function calculateMaxAffordableCount(
+  baseCost: number,
+  growth: number,
+  currentLevel: number,
+  cash: number
+): { count: number; cost: number } {
+  if (cash <= 0) return { count: 0, cost: 0 };
+  const firstCost = baseCost * Math.pow(growth, currentLevel);
+  if (cash < firstCost) return { count: 0, cost: 0 };
+
+  if (Math.abs(growth - 1) < 1e-9) {
+    const count = Math.floor(cash / baseCost);
+    return { count, cost: count * baseCost };
+  }
+
+  const ratio = 1 + (cash * (growth - 1)) / firstCost;
+  let count = Math.floor(Math.log(ratio) / Math.log(growth) + 1e-11);
+  if (count < 1) count = 1;
+
+  let cost = calculateGeometricCost(baseCost, growth, currentLevel, count);
+  while (cost > cash && count > 0) {
+    count--;
+    cost = calculateGeometricCost(baseCost, growth, currentLevel, count);
+  }
+  while (true) {
+    const nextCost = calculateGeometricCost(baseCost, growth, currentLevel, count + 1);
+    if (nextCost <= cash) {
+      count++;
+      cost = nextCost;
+    } else {
+      break;
+    }
+  }
+
+  return { count, cost };
+}
+
+export function getEffectiveBuyPlan(
+  baseCost: number,
+  growth: number,
+  currentLevel: number,
+  cash: number,
+  buyAmount: BuyAmount = '1'
+): { count: number; cost: number; canAfford: boolean } {
+  if (buyAmount === '1') {
+    const cost = calculateGeometricCost(baseCost, growth, currentLevel, 1);
+    return { count: 1, cost, canAfford: cash >= cost };
+  }
+
+  const maxAffordable = calculateMaxAffordableCount(baseCost, growth, currentLevel, cash);
+
+  if (buyAmount === '10') {
+    if (maxAffordable.count >= 10) {
+      const cost = calculateGeometricCost(baseCost, growth, currentLevel, 10);
+      return { count: 10, cost, canAfford: true };
+    }
+    if (maxAffordable.count >= 1) {
+      return { count: maxAffordable.count, cost: maxAffordable.cost, canAfford: true };
+    }
+    const cost = calculateGeometricCost(baseCost, growth, currentLevel, 10);
+    return { count: 10, cost, canAfford: false };
+  }
+
+  // 'max'
+  if (maxAffordable.count >= 1) {
+    return { count: maxAffordable.count, cost: maxAffordable.cost, canAfford: true };
+  }
+  const cost = calculateGeometricCost(baseCost, growth, currentLevel, 1);
+  return { count: 1, cost, canAfford: false };
+}
 
 /**
  * Market share calculation:
@@ -90,14 +197,17 @@ export function calculateMarketShareMultiplier(share: number): number {
 
 /**
  * Total income per second:
- * sum(product income) * modelMult * shareMult * (1 + 0.03 * sales) * buildingMult * fundingMult
+ * sum(product income * mgrMult * upgMult) * modelMult * shareMult * (1 + 0.03 * sales) * buildingMult * fundingMult * globalUpgMult
  */
 export function calculateTotalIncomePerSec(state: GameState): number {
   let productIncomeSum = 0;
   for (const pid of PRODUCT_ORDER) {
     const lvl = state.products[pid] ?? 0;
     if (lvl > 0) {
-      productIncomeSum += getProductIncomePerSec(pid, lvl);
+      const baseInc = getProductIncomePerSec(pid, lvl);
+      const mgrMult = getProductManagerMultiplier(pid, state.managers);
+      const upgMult = getProductUpgradesMultiplier(pid, state.upgrades);
+      productIncomeSum += baseInc * mgrMult * upgMult;
     }
   }
 
@@ -107,8 +217,9 @@ export function calculateTotalIncomePerSec(state: GameState): number {
   const salesMult = 1 + 0.03 * (state.people?.sales ?? 0);
   const buildingMult = getBuildingMultiplier(state.buildings ?? 0);
   const fundingMult = getFundingMultiplier(state.fundingTaken ?? {});
+  const globalUpgMult = getGlobalUpgradesMultiplier(state.upgrades);
 
-  return productIncomeSum * modelMult * shareMult * salesMult * buildingMult * fundingMult;
+  return productIncomeSum * modelMult * shareMult * salesMult * buildingMult * fundingMult * globalUpgMult;
 }
 
 /**
@@ -119,7 +230,13 @@ export function stepGame(
   deltaSeconds: number
 ): {
   state: GameState;
-  events?: Array<{ type: 'ready' | 'rival_step'; rivalId?: string; step?: number }>;
+  events?: Array<{
+    type: 'ready' | 'rival_step' | 'milestone';
+    rivalId?: string;
+    step?: number;
+    productId?: ProductId;
+    level?: number;
+  }>;
 } {
   if (deltaSeconds <= 0) return { state };
 
@@ -130,10 +247,18 @@ export function stepGame(
 
   let training: TrainingJob | null = state.training;
   let readyStep: number | null = state.readyStep;
+  let modelStep = state.modelStep;
+  const events: Array<{
+    type: 'ready' | 'rival_step' | 'milestone';
+    rivalId?: string;
+    step?: number;
+    productId?: ProductId;
+    level?: number;
+  }> = [];
 
   // Progress training
   if (training) {
-    const speed = getTrainingSpeed(state.people.engineers, state.gpuClusters);
+    const speed = getTrainingSpeed(state.people.engineers, state.gpuClusters, state.upgrades);
     const newProgress = training.progress + deltaSeconds * speed;
     if (newProgress >= training.total) {
       readyStep = training.step;
@@ -143,15 +268,66 @@ export function stepGame(
     }
   }
 
+  // Launch lead automation: auto-launch ready model immediately
+  if (state.managers?.['launch_lead'] && readyStep !== null) {
+    modelStep = readyStep;
+    events.push({ type: 'ready', step: modelStep });
+    readyStep = null;
+  }
+
+  // Manager auto-buy accumulator: runs 1 cycle per second
+  let autoBuyAccumulator = (state.autoBuyAccumulator ?? 0) + deltaSeconds;
+  const products = { ...state.products };
+  const ticks = Math.min(Math.floor(autoBuyAccumulator), 3600);
+
+  if (ticks > 0) {
+    autoBuyAccumulator -= ticks;
+    for (let t = 0; t < ticks; t++) {
+      // 1. Product managers auto-buy 1 lvl/s when cost <= 10% of cash
+      for (const pid of PRODUCT_ORDER) {
+        if (modelStep >= PRODUCTS[pid].unlockStep) {
+          const mgrId = 'manager_' + pid;
+          if (state.managers?.[mgrId] && state.managerAutoBuy?.[mgrId] !== false) {
+            const lvl = products[pid] ?? 0;
+            const cost = getProductNextCost(pid, lvl);
+            if (cost <= cash * 0.10) {
+              cash -= cost;
+              products[pid] = lvl + 1;
+              for (const m of MILESTONES) {
+                if (lvl < m.level && lvl + 1 >= m.level) {
+                  events.push({ type: 'milestone', productId: pid, level: m.level });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Training Lead auto-starts next model when cost <= 25% of cash
+      if (state.managers?.['training_lead']) {
+        if (!training && readyStep === null) {
+          const nextK = modelStep + 1;
+          if (nextK < CLAUDE_LADDER.length) {
+            const cost = getModelCost(nextK);
+            if (cost <= cash * 0.25) {
+              cash -= cost;
+              const baseSec = getModelBaseSeconds(nextK);
+              training = { step: nextK, progress: 0, total: baseSec };
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Progress rivals
   const rivals: RivalState[] = (state.rivals ?? []).map((rival) => {
-    // Rubber band
-    const diff = rival.step - state.modelStep;
+    const diff = rival.step - modelStep;
     let speed = 1.0;
     if (diff > 2) {
-      speed = 0.5; // half speed if ahead
+      speed = 0.5;
     } else if (diff < -2) {
-      speed = 2.0; // double speed if behind
+      speed = 2.0;
     }
 
     let timer = rival.timer - deltaSeconds * speed;
@@ -163,6 +339,7 @@ export function stepGame(
     if (timer <= 0) {
       if (step < maxStep) {
         step += 1;
+        events.push({ type: 'rival_step', rivalId: rival.id, step });
       }
       timer = getRivalNextTimer(step);
     }
@@ -178,13 +355,16 @@ export function stepGame(
     ...state,
     cash,
     lifetimeEarned,
+    modelStep,
     training,
     readyStep,
+    products,
     rivals,
+    autoBuyAccumulator,
     lastTickTime: Date.now(),
   };
 
-  return { state: nextState };
+  return { state: nextState, events: events.length > 0 ? events : undefined };
 }
 
 /**
@@ -263,79 +443,160 @@ export function launchModel(state: GameState): { state: GameState; launchedName:
   };
 }
 
-export function buyProductLevel(state: GameState, productId: ProductId): GameState {
-  const def = PRODUCTS[productId];
-  if (state.modelStep < def.unlockStep) return state;
-
-  const currentLevel = state.products[productId] ?? 0;
-  const cost = getProductNextCost(productId, currentLevel);
-  if (state.cash < cost) return state;
-
+export function setBuyAmount(state: GameState, buyAmount: BuyAmount): GameState {
   return {
     ...state,
-    cash: state.cash - cost,
-    products: {
-      ...state.products,
-      [productId]: currentLevel + 1,
+    buyAmount,
+  };
+}
+
+export function buyProductBulk(
+  state: GameState,
+  productId: ProductId,
+  mode: BuyAmount = state.buyAmount ?? '1'
+): { state: GameState; count: number; cost: number; milestonesPassed: number[] } {
+  const def = PRODUCTS[productId];
+  if (state.modelStep < def.unlockStep) {
+    return { state, count: 0, cost: 0, milestonesPassed: [] };
+  }
+
+  const currentLevel = state.products[productId] ?? 0;
+  const plan = getEffectiveBuyPlan(def.baseCost, def.costGrowth, currentLevel, state.cash, mode);
+
+  if (!plan.canAfford || plan.count <= 0) {
+    return { state, count: 0, cost: 0, milestonesPassed: [] };
+  }
+
+  const newLevel = currentLevel + plan.count;
+  const milestonesPassed: number[] = [];
+  for (const m of MILESTONES) {
+    if (currentLevel < m.level && newLevel >= m.level) {
+      milestonesPassed.push(m.level);
+    }
+  }
+
+  return {
+    state: {
+      ...state,
+      cash: state.cash - plan.cost,
+      products: {
+        ...state.products,
+        [productId]: newLevel,
+      },
     },
+    count: plan.count,
+    cost: plan.cost,
+    milestonesPassed,
+  };
+}
+
+export function buyProductLevel(state: GameState, productId: ProductId): GameState {
+  return buyProductBulk(state, productId, '1').state;
+}
+
+export function hireEngineerBulk(
+  state: GameState,
+  mode: BuyAmount = state.buyAmount ?? '1'
+): { state: GameState; count: number; cost: number } {
+  const current = state.people.engineers;
+  const plan = getEffectiveBuyPlan(30, 1.16, current, state.cash, mode);
+  if (!plan.canAfford || plan.count <= 0) {
+    return { state, count: 0, cost: 0 };
+  }
+  return {
+    state: {
+      ...state,
+      cash: state.cash - plan.cost,
+      people: {
+        ...state.people,
+        engineers: current + plan.count,
+      },
+    },
+    count: plan.count,
+    cost: plan.cost,
   };
 }
 
 export function hireEngineer(state: GameState): GameState {
-  const current = state.people.engineers;
-  const cost = getEngineerCost(current);
-  if (state.cash < cost) return state;
+  return hireEngineerBulk(state, '1').state;
+}
 
+export function hireSalesBulk(
+  state: GameState,
+  mode: BuyAmount = state.buyAmount ?? '1'
+): { state: GameState; count: number; cost: number } {
+  const current = state.people.sales;
+  const plan = getEffectiveBuyPlan(40, 1.17, current, state.cash, mode);
+  if (!plan.canAfford || plan.count <= 0) {
+    return { state, count: 0, cost: 0 };
+  }
   return {
-    ...state,
-    cash: state.cash - cost,
-    people: {
-      ...state.people,
-      engineers: current + 1,
+    state: {
+      ...state,
+      cash: state.cash - plan.cost,
+      people: {
+        ...state.people,
+        sales: current + plan.count,
+      },
     },
+    count: plan.count,
+    cost: plan.cost,
   };
 }
 
 export function hireSales(state: GameState): GameState {
-  const current = state.people.sales;
-  const cost = getSalesCost(current);
-  if (state.cash < cost) return state;
+  return hireSalesBulk(state, '1').state;
+}
 
+export function hireResearcherBulk(
+  state: GameState,
+  mode: BuyAmount = state.buyAmount ?? '1'
+): { state: GameState; count: number; cost: number } {
+  const current = state.people.researchers;
+  const plan = getEffectiveBuyPlan(60, 1.18, current, state.cash, mode);
+  if (!plan.canAfford || plan.count <= 0) {
+    return { state, count: 0, cost: 0 };
+  }
   return {
-    ...state,
-    cash: state.cash - cost,
-    people: {
-      ...state.people,
-      sales: current + 1,
+    state: {
+      ...state,
+      cash: state.cash - plan.cost,
+      people: {
+        ...state.people,
+        researchers: current + plan.count,
+      },
     },
+    count: plan.count,
+    cost: plan.cost,
   };
 }
 
 export function hireResearcher(state: GameState): GameState {
-  const current = state.people.researchers;
-  const cost = getResearcherCost(current);
-  if (state.cash < cost) return state;
+  return hireResearcherBulk(state, '1').state;
+}
 
+export function buyGpuClusterBulk(
+  state: GameState,
+  mode: BuyAmount = state.buyAmount ?? '1'
+): { state: GameState; count: number; cost: number } {
+  const current = state.gpuClusters;
+  const plan = getEffectiveBuyPlan(50, 1.18, current, state.cash, mode);
+  if (!plan.canAfford || plan.count <= 0) {
+    return { state, count: 0, cost: 0 };
+  }
   return {
-    ...state,
-    cash: state.cash - cost,
-    people: {
-      ...state.people,
-      researchers: current + 1,
+    state: {
+      ...state,
+      cash: state.cash - plan.cost,
+      gpuClusters: current + plan.count,
     },
+    count: plan.count,
+    cost: plan.cost,
   };
 }
 
 export function buyGpuCluster(state: GameState): GameState {
-  const current = state.gpuClusters;
-  const cost = getGpuClusterCost(current);
-  if (state.cash < cost) return state;
-
-  return {
-    ...state,
-    cash: state.cash - cost,
-    gpuClusters: current + 1,
-  };
+  return buyGpuClusterBulk(state, '1').state;
 }
 
 export function buyBuilding(state: GameState): GameState {
@@ -350,6 +611,299 @@ export function buyBuilding(state: GameState): GameState {
     cash: state.cash - nextBuilding.cost,
     buildings: current + 1,
   };
+}
+
+export function hireManager(state: GameState, managerId: string): GameState {
+  if (state.managers?.[managerId]) return state;
+  const def = MANAGERS[managerId];
+  if (!def) return state;
+  if (state.cash < def.cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - def.cost,
+    managers: {
+      ...state.managers,
+      [managerId]: true,
+    },
+    managerAutoBuy: {
+      ...state.managerAutoBuy,
+      [managerId]: true,
+    },
+  };
+}
+
+export function toggleManagerAutoBuy(state: GameState, managerId: string): GameState {
+  if (!state.managers?.[managerId]) return state;
+  const current = state.managerAutoBuy?.[managerId] !== false;
+  return {
+    ...state,
+    managerAutoBuy: {
+      ...state.managerAutoBuy,
+      [managerId]: !current,
+    },
+  };
+}
+
+export function buyUpgrade(state: GameState, upgradeId: string): GameState {
+  if (state.upgrades?.[upgradeId]) return state;
+  const def = UPGRADES[upgradeId];
+  if (!def) return state;
+  if (state.cash < def.cost) return state;
+
+  return {
+    ...state,
+    cash: state.cash - def.cost,
+    upgrades: {
+      ...state.upgrades,
+      [upgradeId]: true,
+    },
+  };
+}
+
+export interface BestBuySuggestion {
+  id: string;
+  type: 'product' | 'upgrade' | 'manager' | 'team' | 'building' | 'training';
+  name: string;
+  cost: number;
+  gainPerSec: number;
+  gainPerDollar: number;
+  label: string;
+}
+
+export function getBestBuyRecommendation(state: GameState): BestBuySuggestion | null {
+  const currentIncome = calculateTotalIncomePerSec(state);
+  let best: BestBuySuggestion | null = null;
+
+  function evaluateCandidate(
+    cand: BestBuySuggestion,
+    cost: number,
+    nextIncome: number
+  ) {
+    if (cost > state.cash || cost <= 0) return;
+    const gainPerSec = Math.max(0, nextIncome - currentIncome);
+    const gainPerDollar = gainPerSec / cost;
+    if (!best || gainPerDollar > best.gainPerDollar) {
+      best = {
+        ...cand,
+        gainPerSec,
+        gainPerDollar,
+      };
+    }
+  }
+
+  // 1. Unlocked Products
+  for (const pid of PRODUCT_ORDER) {
+    const def = PRODUCTS[pid];
+    if (state.modelStep >= def.unlockStep) {
+      const currentLevel = state.products[pid] ?? 0;
+      const cost = getProductNextCost(pid, currentLevel);
+      if (cost <= state.cash) {
+        const testState = {
+          ...state,
+          products: { ...state.products, [pid]: currentLevel + 1 },
+        };
+        const nextIncome = calculateTotalIncomePerSec(testState);
+        evaluateCandidate(
+          {
+            id: pid,
+            type: 'product',
+            name: def.name,
+            cost,
+            gainPerSec: 0,
+            gainPerDollar: 0,
+            label: `Level ${currentLevel + 1} ${def.name}`,
+          },
+          cost,
+          nextIncome
+        );
+      }
+    }
+  }
+
+  // 2. Affordable Upgrades
+  for (const upgId of ALL_UPGRADE_IDS) {
+    if (!state.upgrades?.[upgId]) {
+      const def = UPGRADES[upgId];
+      if (def && def.cost <= state.cash) {
+        const testState = {
+          ...state,
+          upgrades: { ...state.upgrades, [upgId]: true },
+        };
+        const nextIncome = calculateTotalIncomePerSec(testState);
+        evaluateCandidate(
+          {
+            id: upgId,
+            type: 'upgrade',
+            name: def.name,
+            cost: def.cost,
+            gainPerSec: 0,
+            gainPerDollar: 0,
+            label: `${def.name} (${def.description})`,
+          },
+          def.cost,
+          nextIncome
+        );
+      }
+    }
+  }
+
+  // 3. Affordable Managers
+  for (const mgrId of MANAGER_ORDER) {
+    if (!state.managers?.[mgrId]) {
+      const def = MANAGERS[mgrId];
+      if (def && def.cost <= state.cash) {
+        const testState = {
+          ...state,
+          managers: { ...state.managers, [mgrId]: true },
+        };
+        const nextIncome = calculateTotalIncomePerSec(testState);
+        evaluateCandidate(
+          {
+            id: mgrId,
+            type: 'manager',
+            name: def.name,
+            cost: def.cost,
+            gainPerSec: 0,
+            gainPerDollar: 0,
+            label: `Hire ${def.name}`,
+          },
+          def.cost,
+          nextIncome
+        );
+      }
+    }
+  }
+
+  // 4. Sales hires
+  const salesCost = getSalesCost(state.people?.sales ?? 0);
+  if (salesCost <= state.cash) {
+    const testState = {
+      ...state,
+      people: { ...state.people, sales: (state.people?.sales ?? 0) + 1 },
+    };
+    const nextIncome = calculateTotalIncomePerSec(testState);
+    evaluateCandidate(
+      {
+        id: 'hire_sales',
+        type: 'team',
+        name: 'Sales Rep',
+        cost: salesCost,
+        gainPerSec: 0,
+        gainPerDollar: 0,
+        label: 'Hire Sales Rep',
+      },
+      salesCost,
+      nextIncome
+    );
+  }
+
+  // 5. Buildings
+  if (state.buildings < BUILDINGS.length) {
+    const bldg = BUILDINGS[state.buildings];
+    if (bldg.cost <= state.cash) {
+      const testState = {
+        ...state,
+        buildings: state.buildings + 1,
+      };
+      const nextIncome = calculateTotalIncomePerSec(testState);
+      evaluateCandidate(
+        {
+          id: 'buy_building',
+          type: 'building',
+          name: bldg.name,
+          cost: bldg.cost,
+          gainPerSec: 0,
+          gainPerDollar: 0,
+          label: `Upgrade to ${bldg.name}`,
+        },
+        bldg.cost,
+        nextIncome
+      );
+    }
+  }
+
+  // Fallback if no candidate gives instant positive income
+  if (!best) {
+    if (!state.training && state.readyStep === null) {
+      const nextK = state.modelStep + 1;
+      if (nextK < CLAUDE_LADDER.length) {
+        const cost = getModelCost(nextK);
+        if (cost <= state.cash) {
+          return {
+            id: `train_${nextK}`,
+            type: 'training',
+            name: CLAUDE_LADDER[nextK],
+            cost,
+            gainPerSec: 0,
+            gainPerDollar: 0.0001,
+            label: `Train ${CLAUDE_LADDER[nextK]}`,
+          };
+        }
+      }
+    }
+
+    if (state.modelStep >= PRODUCTS.chat.unlockStep) {
+      const cost = getProductNextCost('chat', state.products.chat ?? 0);
+      if (cost <= state.cash) {
+        return {
+          id: 'chat',
+          type: 'product',
+          name: PRODUCTS.chat.name,
+          cost,
+          gainPerSec: 0,
+          gainPerDollar: 0.0001,
+          label: `Level ${(state.products.chat ?? 0) + 1} Chat App`,
+        };
+      }
+    }
+
+    const engCost = getEngineerCost(state.people?.engineers ?? 0);
+    if (engCost <= state.cash) {
+      return {
+        id: 'hire_engineer',
+        type: 'team',
+        name: 'Engineer',
+        cost: engCost,
+        gainPerSec: 0,
+        gainPerDollar: 0.0001,
+        label: 'Hire Engineer',
+      };
+    }
+  }
+
+  return best;
+}
+
+export function executeBestBuy(
+  state: GameState,
+  suggestion: BestBuySuggestion
+): { state: GameState; milestonesPassed?: number[] } {
+  if (suggestion.type === 'product') {
+    const res = buyProductBulk(state, suggestion.id as ProductId, '1');
+    return { state: res.state, milestonesPassed: res.milestonesPassed };
+  }
+  if (suggestion.type === 'upgrade') {
+    return { state: buyUpgrade(state, suggestion.id) };
+  }
+  if (suggestion.type === 'manager') {
+    return { state: hireManager(state, suggestion.id) };
+  }
+  if (suggestion.type === 'team') {
+    if (suggestion.id === 'hire_sales') {
+      return { state: hireSales(state) };
+    }
+    if (suggestion.id === 'hire_engineer') {
+      return { state: hireEngineer(state) };
+    }
+  }
+  if (suggestion.type === 'building') {
+    return { state: buyBuilding(state) };
+  }
+  if (suggestion.type === 'training') {
+    return { state: startTraining(state) };
+  }
+  return { state };
 }
 
 export function canTakeFunding(

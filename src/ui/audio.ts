@@ -119,3 +119,31 @@ export function playEvent(enabled: boolean = true): void {
     // Audio output unavailable
   }
 }
+
+/**
+ * Bright higher chime when a product crosses a milestone level (x2/x3 multiplier).
+ */
+export function playMilestone(enabled: boolean = true): void {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    gain.connect(ctx.destination);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(659.25, now); // E5
+    osc1.frequency.setValueAtTime(880, now + 0.08); // A5
+    osc1.frequency.setValueAtTime(1318.5, now + 0.16); // E6
+    osc1.connect(gain);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+  } catch {
+    // Audio output unavailable
+  }
+}

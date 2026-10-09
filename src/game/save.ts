@@ -75,6 +75,11 @@ export function createInitialState(showFreshStartSheet: boolean = true): GameSta
     achievements: {},
     tutorialDone: true,
     eventLogs: [],
+    managers: {},
+    managerAutoBuy: {},
+    upgrades: {},
+    buyAmount: '1',
+    autoBuyAccumulator: 0,
   };
 }
 
@@ -142,6 +147,11 @@ function parseV2State(raw: string | null): GameState | null {
         achievements: parsed.achievements ?? {},
         tutorialDone: parsed.tutorialDone !== undefined ? parsed.tutorialDone : true,
         eventLogs: Array.isArray(parsed.eventLogs) ? parsed.eventLogs : [],
+        managers: parsed.managers ?? {},
+        managerAutoBuy: parsed.managerAutoBuy ?? {},
+        upgrades: parsed.upgrades ?? {},
+        buyAmount: parsed.buyAmount ?? '1',
+        autoBuyAccumulator: parsed.autoBuyAccumulator ?? 0,
       } as GameState;
     }
   } catch {

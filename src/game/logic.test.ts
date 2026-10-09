@@ -17,6 +17,12 @@ import {
   buyStock,
   sellStock,
   getCheapestNextGoal,
+  calculateGeometricCost,
+  calculateMaxAffordableCount,
+  getEffectiveBuyPlan,
+  hireManager,
+  toggleManagerAutoBuy,
+  buyUpgrade,
 } from './logic';
 import {
   getRivalScore,
@@ -177,5 +183,147 @@ describe('V2 Logic: Products, Models, Rivals, Economy', () => {
     const state = createInitialState(false);
     const goal = getCheapestNextGoal(state);
     expect(goal).toMatch(/Next:/i);
+  });
+
+  describe('Bulk Buy & Geometric Series Cost Math', () => {
+    it('calculates geometric cost correctly for count=1, 10', () => {
+      // base=5, growth=1.12, level 0
+      const cost1 = calculateGeometricCost(5, 1.12, 0, 1);
+      expect(cost1).toBe(5);
+
+      const cost2 = calculateGeometricCost(5, 1.12, 0, 2);
+      expect(cost2).toBeCloseTo(5 + 5 * 1.12, 2);
+
+      const cost10 = calculateGeometricCost(5, 1.12, 0, 10);
+      // sum_{i=0}^9 5 * 1.12^i = 5 * (1.12^10 - 1) / 0.12 = 87.74
+      expect(cost10).toBeCloseTo(87.74, 1);
+    });
+
+    it('calculates max affordable count correctly', () => {
+      // base=5, growth=1.12, level 0, cash=10 -> can afford 2 (5 + 5.60 = 10.60? wait: 5 + 5.60 = 10.60 > 10, so 1!)
+      const max10 = calculateMaxAffordableCount(5, 1.12, 0, 10);
+      expect(max10.count).toBe(1);
+      expect(max10.cost).toBe(5);
+
+      // cash=11 -> can afford 2 (cost 10.60)
+      const max11 = calculateMaxAffordableCount(5, 1.12, 0, 11);
+      expect(max11.count).toBe(2);
+      expect(max11.cost).toBeCloseTo(10.60, 2);
+
+      // cash=100 -> can afford 10 (cost 87.74)
+      const max100 = calculateMaxAffordableCount(5, 1.12, 0, 100);
+      expect(max100.count).toBe(10);
+      expect(max100.cost).toBeCloseTo(87.74, 1);
+    });
+
+    it('getEffectiveBuyPlan supports x1, x10, and max', () => {
+      // x1 with $10
+      const plan1 = getEffectiveBuyPlan(5, 1.12, 0, 10, '1');
+      expect(plan1.count).toBe(1);
+      expect(plan1.cost).toBe(5);
+      expect(plan1.canAfford).toBe(true);
+
+      // x10 with $10 -> can only afford 1, so count is 1
+      const plan10Partial = getEffectiveBuyPlan(5, 1.12, 0, 10, '10');
+      expect(plan10Partial.count).toBe(1);
+      expect(plan10Partial.cost).toBe(5);
+      expect(plan10Partial.canAfford).toBe(true);
+
+      // x10 with $100 -> can afford 10
+      const plan10Full = getEffectiveBuyPlan(5, 1.12, 0, 100, '10');
+      expect(plan10Full.count).toBe(10);
+      expect(plan10Full.cost).toBeCloseTo(87.74, 1);
+      expect(plan10Full.canAfford).toBe(true);
+
+      // max with $100 -> buys 10
+      const planMax = getEffectiveBuyPlan(5, 1.12, 0, 100, 'max');
+      expect(planMax.count).toBe(10);
+      expect(planMax.cost).toBeCloseTo(87.74, 1);
+      expect(planMax.canAfford).toBe(true);
+    });
+  });
+
+  describe('Managers & Upgrades (v0.4.0)', () => {
+    it('hires Head of Chat, applies x1.5 multiplier, and allows auto-buy toggle', () => {
+      let state = createInitialState(false);
+      state.modelStep = 0;
+      state.products.chat = 10;
+      state.cash = 10000;
+
+      const baseIncome = calculateTotalIncomePerSec(state);
+
+      // Hire manager_chat (cost $5,000)
+      state = hireManager(state, 'manager_chat');
+      expect(state.managers?.manager_chat).toBe(true);
+      expect(state.managerAutoBuy?.manager_chat).toBe(true);
+      expect(state.cash).toBe(5000);
+
+      const mgrIncome = calculateTotalIncomePerSec(state);
+      expect(mgrIncome).toBeCloseTo(baseIncome * 1.5, 3);
+
+      // Toggle auto buy off and on
+      state = toggleManagerAutoBuy(state, 'manager_chat');
+      expect(state.managerAutoBuy?.manager_chat).toBe(false);
+      state = toggleManagerAutoBuy(state, 'manager_chat');
+      expect(state.managerAutoBuy?.manager_chat).toBe(true);
+    });
+
+    it('buys product upgrade and applies x3 multiplier', () => {
+      let state = createInitialState(false);
+      state.modelStep = 0;
+      state.products.chat = 10;
+      state.cash = 10000;
+
+      const baseIncome = calculateTotalIncomePerSec(state);
+
+      state = buyUpgrade(state, 'upg_chat_1'); // Better Prompts ($5,000)
+      expect(state.upgrades?.upg_chat_1).toBe(true);
+      expect(state.cash).toBe(5000);
+
+      const upgIncome = calculateTotalIncomePerSec(state);
+      expect(upgIncome).toBeCloseTo(baseIncome * 3, 3);
+    });
+
+    it('buys global upgrade RLHF and applies x2 multiplier across all income', () => {
+      let state = createInitialState(false);
+      state.modelStep = 1;
+      state.products.chat = 10;
+      state.products.api = 5;
+      state.cash = 500000;
+
+      const baseIncome = calculateTotalIncomePerSec(state);
+
+      state = buyUpgrade(state, 'upg_global_rlhf'); // RLHF ($250,000)
+      expect(state.upgrades?.upg_global_rlhf).toBe(true);
+
+      const rlhfIncome = calculateTotalIncomePerSec(state);
+      expect(rlhfIncome).toBeCloseTo(baseIncome * 2, 3);
+    });
+
+    it('Training Lead and Launch Lead automate training and launching in stepGame', () => {
+      let state = createInitialState(false);
+      state.cash = 50000;
+      state.modelStep = -1;
+
+      // Hire both leads
+      state = hireManager(state, 'training_lead');
+      state = hireManager(state, 'launch_lead');
+      expect(state.managers?.training_lead).toBe(true);
+      expect(state.managers?.launch_lead).toBe(true);
+
+      // Model 0 (Claude 1) costs $10 <= 25% of cash ($15,000)
+      // Step 1 second -> Training lead auto-starts Claude 1!
+      const step1 = stepGame(state, 1);
+      state = step1.state;
+      expect(state.training).not.toBeNull();
+      expect(state.training?.step).toBe(0);
+
+      // Fast-forward training completion (Claude 1 takes 6s base)
+      const step2 = stepGame(state, 10);
+      state = step2.state;
+      // Launch lead auto-launches immediately so modelStep is now 0!
+      expect(state.modelStep).toBe(0);
+      expect(state.readyStep).toBeNull();
+    });
   });
 });

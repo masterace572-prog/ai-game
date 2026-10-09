@@ -1,14 +1,22 @@
 // Balance constants and definitions for Model Foundry
 // Single source of truth for all idle tycoon mechanics.
 
-import type { ProductDef, ProductId, BuildingDef, FundingDef, AchievementId } from './types';
+import type {
+  ProductDef,
+  ProductId,
+  BuildingDef,
+  FundingDef,
+  AchievementId,
+  ManagerDef,
+  UpgradeDef,
+} from './types';
 
 export const SAVE_KEY = 'modelfoundry.save.v2';
 export const BACKUP_SAVE_KEY = 'modelfoundry.save.v2.backup';
 export const SAVE_V1_KEY = 'modelfoundry.save.v1';
 export const BACKUP_V1_KEY = 'modelfoundry.save.v1.backup';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.4.0';
 export const DEFAULT_LAB_NAME = 'Claude';
 export const STARTING_CASH = 10;
 
@@ -208,8 +216,13 @@ export function getModelBaseSeconds(step: number): number {
   return 6 + 4.0 * Math.pow(step, 1.4);
 }
 
-export function getTrainingSpeed(engineers: number, gpuClusters: number): number {
-  return (1 + 0.05 * engineers) * (1 + 0.06 * gpuClusters);
+export function getTrainingSpeed(
+  engineers: number,
+  gpuClusters: number,
+  upgrades: Record<string, boolean> = {}
+): number {
+  const base = (1 + 0.05 * engineers) * (1 + 0.06 * gpuClusters);
+  return base * getTrainingUpgradesMultiplier(upgrades);
 }
 
 export function getModelScore(step: number, researchers: number = 0): number {
@@ -479,4 +492,208 @@ export function getStockSellProceeds(price: number, shares: number): number {
 // Tap to earn
 export function getTapEarnAmount(incomePerSec: number): number {
   return 0.50 + 0.05 * incomePerSec;
+}
+
+// Managers
+export const MANAGERS: Record<string, ManagerDef> = {
+  training_lead: {
+    id: 'training_lead',
+    name: 'Training Lead',
+    role: 'Operations',
+    cost: 25000,
+    type: 'training_lead',
+    description: 'Auto-starts next model when cost ≤ 25% of cash',
+  },
+  launch_lead: {
+    id: 'launch_lead',
+    name: 'Launch Lead',
+    role: 'Operations',
+    cost: 10000,
+    type: 'launch_lead',
+    description: 'Auto-launches ready models immediately',
+  },
+  manager_chat: {
+    id: 'manager_chat',
+    name: 'Head of Chat',
+    role: 'Product Lead',
+    cost: PRODUCTS.chat.baseCost * 1000,
+    productId: 'chat',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Chat income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_api: {
+    id: 'manager_api',
+    name: 'Head of API',
+    role: 'Product Lead',
+    cost: PRODUCTS.api.baseCost * 1000,
+    productId: 'api',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 API income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_code: {
+    id: 'manager_code',
+    name: 'Head of Code',
+    role: 'Product Lead',
+    cost: PRODUCTS.code.baseCost * 1000,
+    productId: 'code',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Coding income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_enterprise: {
+    id: 'manager_enterprise',
+    name: 'Head of Enterprise',
+    role: 'Product Lead',
+    cost: PRODUCTS.enterprise.baseCost * 1000,
+    productId: 'enterprise',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Enterprise income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_mobile: {
+    id: 'manager_mobile',
+    name: 'Head of Mobile',
+    role: 'Product Lead',
+    cost: PRODUCTS.mobile.baseCost * 1000,
+    productId: 'mobile',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Voice & Mobile income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_science: {
+    id: 'manager_science',
+    name: 'Head of Science',
+    role: 'Product Lead',
+    cost: PRODUCTS.science.baseCost * 1000,
+    productId: 'science',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Gov & Science income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+  manager_robots: {
+    id: 'manager_robots',
+    name: 'Head of Robotics',
+    role: 'Product Lead',
+    cost: PRODUCTS.robots.baseCost * 1000,
+    productId: 'robots',
+    type: 'product',
+    multiplier: 1.5,
+    description: 'x1.5 Robotics income · Auto-buys levels (cost ≤ 10% cash)',
+  },
+};
+
+export const MANAGER_ORDER: string[] = [
+  'training_lead',
+  'launch_lead',
+  'manager_chat',
+  'manager_api',
+  'manager_code',
+  'manager_enterprise',
+  'manager_mobile',
+  'manager_science',
+  'manager_robots',
+];
+
+export function getProductManagerMultiplier(
+  productId: ProductId,
+  managers: Record<string, boolean> = {}
+): number {
+  return managers['manager_' + productId] ? 1.5 : 1.0;
+}
+
+// Upgrades table
+export const UPGRADES: Record<string, UpgradeDef> = {
+  // Chat
+  upg_chat_1: { id: 'upg_chat_1', name: 'Better Prompts', cost: PRODUCTS.chat.baseCost * 1e3, category: 'product', productId: 'chat', multiplier: 3, description: 'x3 Chat App revenue' },
+  upg_chat_2: { id: 'upg_chat_2', name: 'Long Context', cost: PRODUCTS.chat.baseCost * 1e5, category: 'product', productId: 'chat', multiplier: 3, description: 'x3 Chat App revenue' },
+  upg_chat_3: { id: 'upg_chat_3', name: 'Memory', cost: PRODUCTS.chat.baseCost * 1e7, category: 'product', productId: 'chat', multiplier: 3, description: 'x3 Chat App revenue' },
+  upg_chat_4: { id: 'upg_chat_4', name: 'Voice Mode', cost: PRODUCTS.chat.baseCost * 1e9, category: 'product', productId: 'chat', multiplier: 3, description: 'x3 Chat App revenue' },
+
+  // API
+  upg_api_1: { id: 'upg_api_1', name: 'Batch Endpoints', cost: PRODUCTS.api.baseCost * 1e3, category: 'product', productId: 'api', multiplier: 3, description: 'x3 API revenue' },
+  upg_api_2: { id: 'upg_api_2', name: 'Streaming Responses', cost: PRODUCTS.api.baseCost * 1e5, category: 'product', productId: 'api', multiplier: 3, description: 'x3 API revenue' },
+  upg_api_3: { id: 'upg_api_3', name: 'Prompt Caching', cost: PRODUCTS.api.baseCost * 1e7, category: 'product', productId: 'api', multiplier: 3, description: 'x3 API revenue' },
+  upg_api_4: { id: 'upg_api_4', name: 'Dedicated Capacity', cost: PRODUCTS.api.baseCost * 1e9, category: 'product', productId: 'api', multiplier: 3, description: 'x3 API revenue' },
+
+  // Code
+  upg_code_1: { id: 'upg_code_1', name: 'Syntax Tree Analysis', cost: PRODUCTS.code.baseCost * 1e3, category: 'product', productId: 'code', multiplier: 3, description: 'x3 Coding Agent revenue' },
+  upg_code_2: { id: 'upg_code_2', name: 'Repo-Level Context', cost: PRODUCTS.code.baseCost * 1e5, category: 'product', productId: 'code', multiplier: 3, description: 'x3 Coding Agent revenue' },
+  upg_code_3: { id: 'upg_code_3', name: 'Autonomous Debugging', cost: PRODUCTS.code.baseCost * 1e7, category: 'product', productId: 'code', multiplier: 3, description: 'x3 Coding Agent revenue' },
+  upg_code_4: { id: 'upg_code_4', name: 'Self-Healing Tests', cost: PRODUCTS.code.baseCost * 1e9, category: 'product', productId: 'code', multiplier: 3, description: 'x3 Coding Agent revenue' },
+
+  // Enterprise
+  upg_enterprise_1: { id: 'upg_enterprise_1', name: 'SOC2 Compliance', cost: PRODUCTS.enterprise.baseCost * 1e3, category: 'product', productId: 'enterprise', multiplier: 3, description: 'x3 Enterprise revenue' },
+  upg_enterprise_2: { id: 'upg_enterprise_2', name: 'VPC Peering', cost: PRODUCTS.enterprise.baseCost * 1e5, category: 'product', productId: 'enterprise', multiplier: 3, description: 'x3 Enterprise revenue' },
+  upg_enterprise_3: { id: 'upg_enterprise_3', name: 'Zero-Data Retention', cost: PRODUCTS.enterprise.baseCost * 1e7, category: 'product', productId: 'enterprise', multiplier: 3, description: 'x3 Enterprise revenue' },
+  upg_enterprise_4: { id: 'upg_enterprise_4', name: 'SLA Guarantees', cost: PRODUCTS.enterprise.baseCost * 1e9, category: 'product', productId: 'enterprise', multiplier: 3, description: 'x3 Enterprise revenue' },
+
+  // Mobile
+  upg_mobile_1: { id: 'upg_mobile_1', name: 'On-Device Quantization', cost: PRODUCTS.mobile.baseCost * 1e3, category: 'product', productId: 'mobile', multiplier: 3, description: 'x3 Voice & Mobile revenue' },
+  upg_mobile_2: { id: 'upg_mobile_2', name: 'Neural Engine Offload', cost: PRODUCTS.mobile.baseCost * 1e5, category: 'product', productId: 'mobile', multiplier: 3, description: 'x3 Voice & Mobile revenue' },
+  upg_mobile_3: { id: 'upg_mobile_3', name: 'Sub-10ms Audio Pipeline', cost: PRODUCTS.mobile.baseCost * 1e7, category: 'product', productId: 'mobile', multiplier: 3, description: 'x3 Voice & Mobile revenue' },
+  upg_mobile_4: { id: 'upg_mobile_4', name: 'Always-On Assistant', cost: PRODUCTS.mobile.baseCost * 1e9, category: 'product', productId: 'mobile', multiplier: 3, description: 'x3 Voice & Mobile revenue' },
+
+  // Science
+  upg_science_1: { id: 'upg_science_1', name: 'Literature Synthesis', cost: PRODUCTS.science.baseCost * 1e3, category: 'product', productId: 'science', multiplier: 3, description: 'x3 Gov & Science revenue' },
+  upg_science_2: { id: 'upg_science_2', name: 'Protein Folding', cost: PRODUCTS.science.baseCost * 1e5, category: 'product', productId: 'science', multiplier: 3, description: 'x3 Gov & Science revenue' },
+  upg_science_3: { id: 'upg_science_3', name: 'Hypothesis Generation', cost: PRODUCTS.science.baseCost * 1e7, category: 'product', productId: 'science', multiplier: 3, description: 'x3 Gov & Science revenue' },
+  upg_science_4: { id: 'upg_science_4', name: 'Automated Lab Trials', cost: PRODUCTS.science.baseCost * 1e9, category: 'product', productId: 'science', multiplier: 3, description: 'x3 Gov & Science revenue' },
+
+  // Robots
+  upg_robots_1: { id: 'upg_robots_1', name: 'Sim-to-Real Transfer', cost: PRODUCTS.robots.baseCost * 1e3, category: 'product', productId: 'robots', multiplier: 3, description: 'x3 Robotics revenue' },
+  upg_robots_2: { id: 'upg_robots_2', name: 'Vision-Language-Action', cost: PRODUCTS.robots.baseCost * 1e5, category: 'product', productId: 'robots', multiplier: 3, description: 'x3 Robotics revenue' },
+  upg_robots_3: { id: 'upg_robots_3', name: 'Tactile Feedback', cost: PRODUCTS.robots.baseCost * 1e7, category: 'product', productId: 'robots', multiplier: 3, description: 'x3 Robotics revenue' },
+  upg_robots_4: { id: 'upg_robots_4', name: 'Fleet Consensus', cost: PRODUCTS.robots.baseCost * 1e9, category: 'product', productId: 'robots', multiplier: 3, description: 'x3 Robotics revenue' },
+
+  // Global Upgrades
+  upg_global_rlhf: { id: 'upg_global_rlhf', name: 'RLHF', cost: 250000, category: 'global', multiplier: 2, description: 'x2 All Revenue' },
+  upg_global_cai: { id: 'upg_global_cai', name: 'Constitutional AI', cost: 50000000, category: 'global', multiplier: 2, description: 'x2 All Revenue' },
+  upg_global_moe: { id: 'upg_global_moe', name: 'Mixture of Experts', cost: 5000000000, category: 'global', multiplier: 3, description: 'x3 All Revenue' },
+  upg_global_reasoning: { id: 'upg_global_reasoning', name: 'Reasoning Mode', cost: 500000000000, category: 'global', multiplier: 3, description: 'x3 All Revenue' },
+  upg_global_agentic: { id: 'upg_global_agentic', name: 'Agentic Era', cost: 50000000000000, category: 'global', multiplier: 5, description: 'x5 All Revenue' },
+
+  // Training Speed Upgrades
+  upg_train_flash: { id: 'upg_train_flash', name: 'Flash Attention', cost: 5000, category: 'training', multiplier: 1.5, description: 'x1.5 Training Speed' },
+  upg_train_distill: { id: 'upg_train_distill', name: 'Distillation', cost: 2000000, category: 'training', multiplier: 2, description: 'x2 Training Speed' },
+  upg_train_chips: { id: 'upg_train_chips', name: 'Custom Chips', cost: 1000000000, category: 'training', multiplier: 2, description: 'x2 Training Speed' },
+};
+
+export const ALL_UPGRADE_IDS: string[] = Object.keys(UPGRADES);
+
+export function getProductUpgradesMultiplier(
+  productId: ProductId,
+  upgrades: Record<string, boolean> = {}
+): number {
+  let mult = 1.0;
+  for (let i = 1; i <= 4; i++) {
+    const upgId = `upg_${productId}_${i}`;
+    if (upgrades[upgId]) {
+      mult *= 3;
+    }
+  }
+  return mult;
+}
+
+export function getGlobalUpgradesMultiplier(
+  upgrades: Record<string, boolean> = {}
+): number {
+  let mult = 1.0;
+  if (upgrades['upg_global_rlhf']) mult *= 2;
+  if (upgrades['upg_global_cai']) mult *= 2;
+  if (upgrades['upg_global_moe']) mult *= 3;
+  if (upgrades['upg_global_reasoning']) mult *= 3;
+  if (upgrades['upg_global_agentic']) mult *= 5;
+  return mult;
+}
+
+export function getTrainingUpgradesMultiplier(
+  upgrades: Record<string, boolean> = {}
+): number {
+  let mult = 1.0;
+  if (upgrades['upg_train_flash']) mult *= 1.5;
+  if (upgrades['upg_train_distill']) mult *= 2;
+  if (upgrades['upg_train_chips']) mult *= 2;
+  return mult;
 }

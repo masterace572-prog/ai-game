@@ -32,8 +32,9 @@ import { SettingsScreen } from './ui/SettingsScreen';
 import { NewEraScreen } from './ui/NewEraScreen';
 import { MoreScreen } from './ui/MoreScreen';
 import { Toast } from './ui/Toast';
+import { Segmented } from './ui/Segmented';
 import { loadGameState, saveGameState, createInitialState } from './game/save';
-import { playTap, playLaunch, playEvent } from './ui/audio';
+import { playTap, playLaunch, playEvent, playMilestone } from './ui/audio';
 import { formatMoney, formatCost, formatRate } from './ui/format';
 import {
   stepGame,
@@ -41,32 +42,42 @@ import {
   startTraining,
   boostTraining,
   launchModel,
-  buyProductLevel,
-  hireEngineer,
-  hireSales,
-  hireResearcher,
-  buyGpuCluster,
+  buyProductBulk,
+  hireEngineerBulk,
+  hireSalesBulk,
+  hireResearcherBulk,
+  buyGpuClusterBulk,
   buyBuilding,
+  hireManager,
+  toggleManagerAutoBuy,
+  buyUpgrade,
   takeFunding,
   buyStock,
   sellStock,
   calculateTotalIncomePerSec,
   getCheapestNextGoal,
+  getEffectiveBuyPlan,
+  getBestBuyRecommendation,
+  executeBestBuy,
   simulateOfflineCatchUp,
   type OfflineReport,
+  type BestBuySuggestion,
 } from './game/logic';
 import {
   CLAUDE_LADDER,
   PRODUCTS,
   PRODUCT_ORDER,
+  MILESTONES,
+  MANAGERS,
+  UPGRADES,
+  ALL_UPGRADE_IDS,
   getModelCost,
   getModelBaseSeconds,
-  getProductNextCost,
   getProductIncomePerSec,
   getNextProductMilestone,
   getTrainingSpeed,
 } from './game/balance';
-import type { GameState, ProductId } from './game/types';
+import type { GameState, ProductId, BuyAmount } from './game/types';
 import './styles.css';
 
 interface TapFloater {
@@ -94,6 +105,8 @@ export const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lockedProductsOpen, setLockedProductsOpen] = useState(false);
   const [floaters, setFloaters] = useState<TapFloater[]>([]);
+  const [buyAmount, setBuyAmountState] = useState<BuyAmount>(gameState.buyAmount ?? '1');
+  const [flashingProduct, setFlashingProduct] = useState<ProductId | null>(null);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
@@ -139,6 +152,19 @@ export const App: React.FC = () => {
           if (modelFinished) {
             setToastMessage('Training complete! Model is ready to launch.');
             playEvent(nextState.soundEnabled ?? true);
+          }
+
+          if (events) {
+            for (const ev of events) {
+              if (ev.type === 'milestone' && ev.productId) {
+                setFlashingProduct(ev.productId);
+                setTimeout(() => setFlashingProduct(null), 200);
+                const mDef = MILESTONES.find((m) => m.level === ev.level);
+                const mult = mDef ? mDef.mult : 2;
+                setToastMessage(`${PRODUCTS[ev.productId].name} x${mult}!`);
+                playMilestone(nextState.soundEnabled ?? true);
+              }
+            }
           }
 
           // Auto-save every 5 seconds or immediately when model finishes
@@ -253,41 +279,70 @@ export const App: React.FC = () => {
     setToastMessage(`Launched ${launchedName}! Multiplier boosted.`);
   };
 
-  // Buy product level
-  const handleBuyProduct = (productId: ProductId) => {
-    const nextState = buyProductLevel(gameStateRef.current, productId);
+  // Buy amount mode
+  const handleSetBuyAmount = (mode: BuyAmount) => {
+    setBuyAmountState(mode);
+    const nextState = { ...gameStateRef.current, buyAmount: mode };
     setGameState(nextState);
     gameStateRef.current = nextState;
     playTap(nextState.soundEnabled ?? true);
+  };
+
+  // Buy product bulk
+  const handleBuyProduct = (productId: ProductId) => {
+    const res = buyProductBulk(gameStateRef.current, productId, buyAmount);
+    if (res.count > 0) {
+      setGameState(res.state);
+      gameStateRef.current = res.state;
+      if (res.milestonesPassed.length > 0) {
+        setFlashingProduct(productId);
+        setTimeout(() => setFlashingProduct(null), 200);
+        const lastMilestone = res.milestonesPassed[res.milestonesPassed.length - 1];
+        const mDef = MILESTONES.find((m) => m.level === lastMilestone);
+        const mult = mDef ? mDef.mult : 2;
+        setToastMessage(`${PRODUCTS[productId].name} x${mult}!`);
+        playMilestone(res.state.soundEnabled ?? true);
+      } else {
+        playTap(res.state.soundEnabled ?? true);
+      }
+    }
   };
 
   // Team hires
-  const handleHireEngineer = () => {
-    const nextState = hireEngineer(gameStateRef.current);
-    setGameState(nextState);
-    gameStateRef.current = nextState;
-    playTap(nextState.soundEnabled ?? true);
+  const handleHireEngineer = (mode: BuyAmount = buyAmount) => {
+    const res = hireEngineerBulk(gameStateRef.current, mode);
+    if (res.count > 0) {
+      setGameState(res.state);
+      gameStateRef.current = res.state;
+      playTap(res.state.soundEnabled ?? true);
+    }
   };
 
-  const handleHireSales = () => {
-    const nextState = hireSales(gameStateRef.current);
-    setGameState(nextState);
-    gameStateRef.current = nextState;
-    playTap(nextState.soundEnabled ?? true);
+  const handleHireSales = (mode: BuyAmount = buyAmount) => {
+    const res = hireSalesBulk(gameStateRef.current, mode);
+    if (res.count > 0) {
+      setGameState(res.state);
+      gameStateRef.current = res.state;
+      playTap(res.state.soundEnabled ?? true);
+    }
   };
 
-  const handleHireResearcher = () => {
-    const nextState = hireResearcher(gameStateRef.current);
-    setGameState(nextState);
-    gameStateRef.current = nextState;
-    playTap(nextState.soundEnabled ?? true);
+  const handleHireResearcher = (mode: BuyAmount = buyAmount) => {
+    const res = hireResearcherBulk(gameStateRef.current, mode);
+    if (res.count > 0) {
+      setGameState(res.state);
+      gameStateRef.current = res.state;
+      playTap(res.state.soundEnabled ?? true);
+    }
   };
 
-  const handleBuyGpuCluster = () => {
-    const nextState = buyGpuCluster(gameStateRef.current);
-    setGameState(nextState);
-    gameStateRef.current = nextState;
-    playTap(nextState.soundEnabled ?? true);
+  const handleBuyGpuCluster = (mode: BuyAmount = buyAmount) => {
+    const res = buyGpuClusterBulk(gameStateRef.current, mode);
+    if (res.count > 0) {
+      setGameState(res.state);
+      gameStateRef.current = res.state;
+      playTap(res.state.soundEnabled ?? true);
+    }
   };
 
   const handleBuyBuilding = () => {
@@ -295,6 +350,53 @@ export const App: React.FC = () => {
     setGameState(nextState);
     gameStateRef.current = nextState;
     playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleHireManager = (managerId: string) => {
+    const nextState = hireManager(gameStateRef.current, managerId);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      gameStateRef.current = nextState;
+      playLaunch(nextState.soundEnabled ?? true);
+      const name = MANAGERS[managerId]?.name || 'Manager';
+      setToastMessage(`Hired ${name}!`);
+    }
+  };
+
+  const handleToggleManagerAutoBuy = (managerId: string) => {
+    const nextState = toggleManagerAutoBuy(gameStateRef.current, managerId);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleBuyUpgrade = (upgradeId: string) => {
+    const nextState = buyUpgrade(gameStateRef.current, upgradeId);
+    if (nextState !== gameStateRef.current) {
+      setGameState(nextState);
+      gameStateRef.current = nextState;
+      playLaunch(nextState.soundEnabled ?? true);
+      const name = UPGRADES[upgradeId]?.name || 'Upgrade';
+      setToastMessage(`Unlocked ${name}!`);
+    }
+  };
+
+  const handleExecuteBestBuy = (best: BestBuySuggestion) => {
+    const res = executeBestBuy(gameStateRef.current, best);
+    setGameState(res.state);
+    gameStateRef.current = res.state;
+    if (res.milestonesPassed && res.milestonesPassed.length > 0) {
+      const pid = best.id as ProductId;
+      setFlashingProduct(pid);
+      setTimeout(() => setFlashingProduct(null), 200);
+      const lastMilestone = res.milestonesPassed[res.milestonesPassed.length - 1];
+      const mDef = MILESTONES.find((m) => m.level === lastMilestone);
+      const mult = mDef ? mDef.mult : 2;
+      setToastMessage(`${PRODUCTS[pid]?.name || 'Product'} x${mult}!`);
+      playMilestone(res.state.soundEnabled ?? true);
+    } else {
+      playTap(res.state.soundEnabled ?? true);
+    }
   };
 
   // Funding
@@ -371,11 +473,23 @@ export const App: React.FC = () => {
   };
 
   const incomePerSec = calculateTotalIncomePerSec(gameState);
-  const trainingSpeed = getTrainingSpeed(gameState.people.engineers, gameState.gpuClusters);
+  const trainingSpeed = getTrainingSpeed(gameState.people.engineers, gameState.gpuClusters, gameState.upgrades);
   const nextModelStep = gameState.modelStep + 1;
   const nextModelName = CLAUDE_LADDER[nextModelStep] ?? 'Max Tier Reached';
   const nextModelCost = getModelCost(nextModelStep);
   const nextModelSeconds = Math.round(getModelBaseSeconds(nextModelStep));
+
+  const bestBuy = getBestBuyRecommendation(gameState);
+  const unownedUpgradesList = ALL_UPGRADE_IDS.map((id) => UPGRADES[id]).filter(
+    (u) => !gameState.upgrades?.[u.id]
+  );
+  const affordableUnownedUpgrades = unownedUpgradesList
+    .filter((u) => u.cost <= gameState.cash)
+    .sort((a, b) => a.cost - b.cost);
+  const nextLabUpgrade =
+    affordableUnownedUpgrades[0] ||
+    unownedUpgradesList.sort((a, b) => a.cost - b.cost)[0] ||
+    null;
 
   const unlockedProducts = PRODUCT_ORDER.filter(
     (pid) => gameState.modelStep >= PRODUCTS[pid].unlockStep
@@ -532,6 +646,56 @@ export const App: React.FC = () => {
               </div>
             </div>
 
+            {/* BEST BUY SUGGESTION */}
+            {bestBuy && (
+              <div
+                style={{
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 'var(--space-3)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'var(--gold-tint)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--gold)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Sparkles size={16} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase' }}>
+                      Best Buy
+                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {bestBuy.label}
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleExecuteBestBuy(bestBuy)}
+                >
+                  Buy {formatCost(bestBuy.cost)}
+                </Button>
+              </div>
+            )}
+
             {/* TRAINING CARD */}
             {gameState.training !== null ? (
               <div
@@ -636,27 +800,40 @@ export const App: React.FC = () => {
               </div>
             ) : null}
 
-            {/* PRODUCTS LIST */}
+            {/* PRODUCTS HEADER WITH BUY AMOUNT SELECTOR */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Products & Services
-              </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Products & Services
+                </span>
+                <div style={{ width: '160px' }}>
+                  <Segmented
+                    value={buyAmount}
+                    onChange={(val) => handleSetBuyAmount(val as BuyAmount)}
+                    options={[
+                      { id: '1', label: 'x1' },
+                      { id: '10', label: 'x10' },
+                      { id: 'max', label: 'Max' },
+                    ]}
+                  />
+                </div>
+              </div>
 
               {unlockedProducts.map((pid) => {
                 const def = PRODUCTS[pid];
                 const level = gameState.products[pid] ?? 0;
-                const cost = getProductNextCost(pid, level);
                 const income = getProductIncomePerSec(pid, level);
                 const milestone = getNextProductMilestone(level);
-                const canBuy = gameState.cash >= cost;
+                const plan = getEffectiveBuyPlan(def.baseCost, def.costGrowth, level, gameState.cash, buyAmount);
+                const canBuy = plan.canAfford && plan.count > 0;
                 const IconComponent = getProductIcon(def.iconName);
 
                 // Progress to next milestone
-                let progressValue = 0;
+                let progressValue = 1;
                 let milestoneLabel = 'Max';
                 if (milestone) {
-                  progressValue = (level - milestone.prevLevel) / (milestone.nextLevel - milestone.prevLevel);
-                  milestoneLabel = `x${milestone.multiplier} at ${milestone.nextLevel}`;
+                  progressValue = Math.min(1, Math.max(0, (level - milestone.prevLevel) / (milestone.nextLevel - milestone.prevLevel)));
+                  milestoneLabel = `x${milestone.multiplier} at Lv ${milestone.nextLevel}`;
                 }
 
                 return (
@@ -664,7 +841,9 @@ export const App: React.FC = () => {
                     key={pid}
                     style={{
                       backgroundColor: 'var(--surface)',
-                      border: '1px solid var(--border)',
+                      border: flashingProduct === pid ? '2px solid var(--money)' : '1px solid var(--border)',
+                      boxShadow: flashingProduct === pid ? '0 0 12px var(--money)' : 'none',
+                      transition: 'border 0.2s ease, box-shadow 0.2s ease',
                       borderRadius: 'var(--radius-md)',
                       padding: 'var(--space-3) var(--space-4)',
                       display: 'flex',
@@ -718,24 +897,105 @@ export const App: React.FC = () => {
                         disabled={!canBuy}
                         onClick={() => handleBuyProduct(pid)}
                       >
-                        Buy {formatCost(cost)}
+                        +{plan.count} • {formatCost(plan.cost)}
                       </Button>
                     </div>
 
-                    {/* Milestone progress bar row */}
-                    {milestone && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                        <div style={{ flex: 1 }}>
-                          <ProgressBar value={progressValue} max={1} />
-                        </div>
-                        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', minWidth: '60px', textAlign: 'right' }}>
-                          {milestoneLabel}
-                        </span>
+                    {/* Always show next milestone bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <div style={{ flex: 1 }}>
+                        <ProgressBar value={progressValue} max={1} />
                       </div>
-                    )}
+                      <span style={{ fontSize: '11px', color: milestone ? 'var(--text-tertiary)' : 'var(--success)', minWidth: '85px', textAlign: 'right' }}>
+                        {milestoneLabel}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
+
+              {/* NEXT AFFORDABLE UPGRADE ON LAB UNDER PRODUCTS */}
+              {nextLabUpgrade && (
+                <div
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 'var(--space-3) var(--space-4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 'var(--space-3)',
+                    marginTop: 'var(--space-2)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor:
+                          nextLabUpgrade.category === 'global'
+                            ? 'var(--gold-tint)'
+                            : nextLabUpgrade.category === 'training'
+                            ? 'var(--compute-tint)'
+                            : 'var(--money-tint)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color:
+                          nextLabUpgrade.category === 'global'
+                            ? 'var(--gold)'
+                            : nextLabUpgrade.category === 'training'
+                            ? 'var(--compute)'
+                            : 'var(--money)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {nextLabUpgrade.category === 'global' ? (
+                        <TrendingUp size={18} />
+                      ) : nextLabUpgrade.category === 'training' ? (
+                        <Zap size={18} />
+                      ) : (
+                        <Sparkles size={18} />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>
+                          {nextLabUpgrade.name}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            backgroundColor: 'var(--surface-active)',
+                            color: 'var(--text-secondary)',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {nextLabUpgrade.category}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {nextLabUpgrade.description}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={gameState.cash < nextLabUpgrade.cost}
+                    onClick={() => handleBuyUpgrade(nextLabUpgrade.id)}
+                  >
+                    Buy {formatCost(nextLabUpgrade.cost)}
+                  </Button>
+                </div>
+              )}
 
               {/* LOCKED PRODUCTS ACCORDION */}
               {lockedProducts.length > 0 && (
@@ -827,6 +1087,11 @@ export const App: React.FC = () => {
             onHireResearcher={handleHireResearcher}
             onBuyGpuCluster={handleBuyGpuCluster}
             onBuyBuilding={handleBuyBuilding}
+            onHireManager={handleHireManager}
+            onToggleManagerAutoBuy={handleToggleManagerAutoBuy}
+            onBuyUpgrade={handleBuyUpgrade}
+            buyAmount={buyAmount}
+            onSetBuyAmount={handleSetBuyAmount}
           />
         )}
 

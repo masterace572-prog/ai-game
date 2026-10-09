@@ -1,61 +1,61 @@
-# Model Foundry — Game Design (v2 Idle Tycoon)
+# Model Foundry — Game Design (v0.4.0 Idle Tycoon)
 
-This document is the authoritative design for **Model Foundry**, an offline Android idle tycoon game built in React, TypeScript, and Capacitor.
+This document is the authoritative design for **Model Foundry**, an offline Android idle tycoon game built with React 19, TypeScript, Vite, and Capacitor 8.5.3.
 
-The player runs **Anthropic**, building the **Claude** model family. The game combines the addictive pacing of classic clickers (*AdVenture Capitalist*, *Egg Inc.*) with authentic AI industry dynamics: training ladder models, launching commercial products, hiring engineers and researchers, constructing massive compute campuses, and competing against industry rivals for market share.
+The player runs **Anthropic**, building the **Claude** model family. The game combines the pacing and dopamine of classic clickers (*AdVenture Capitalist*, *Egg Inc.*) with authentic AI dynamics: training sequential foundation models, launching commercial products, hiring engineers and managers, acquiring upgrades, scaling GPU compute clusters, and competing against industry rivals for market share.
 
 ---
 
 ## 1. Theme & Corporate Identity
 
-- **Player Company**: Anthropic (Claude).
+- **Player Company**: Anthropic (Claude HQ).
 - **Starting Capital**: $10.00.
+- **Save File Key**: `modelfoundry.save.v2` (stays on v2 format with safe backward-compatible field defaults for v0.4.0).
 - **Industry Rivals**:
   - **OpenAI (ChatGPT)**: Strength 1.05. Model ladder from GPT-1 to GPT-Omega.
   - **Google (Gemini)**: Strength 1.00. Model ladder from Bard to Gemini Omega.
   - **xAI (Grok)**: Strength 0.95. Model ladder from Grok-1 to Grok Omega.
   - **DeepSeek**: Strength 0.92. Model ladder from DeepSeek Coder to DeepSeek Omega.
-- **Later Ladders**: Meta (Llama), Mistral AI, Alibaba (Qwen).
-- **Design System**: Offline-only, clean typography (Inter), brand-accurate dark/light design tokens, Lucide icons only (no emojis).
+- **Design System**: Strictly offline, clean typography (Inter), brand-accurate dark design tokens, Lucide icons only (no emojis).
 
 ---
 
 ## 2. Core Game Loop
 
-1. **Tap to Earn**: Tap the Claude Treasury hero card to earn immediate cash: `$0.50 + 5% of incomePerSec` (rate-limited to 10 taps/sec).
-2. **Train Models**: Train sequential models along the Claude ladder (Claude 1, Claude Instant, Claude 2, ..., Claude Omega). Training speed increases with Engineers and GPU Clusters. Boost training with active taps.
-3. **Launch Models**: Launching a model unlocks high-tier products, secures funding rounds, and applies an exponential multiplier across all revenue.
-4. **Deploy Products**: Purchase and upgrade commercial products (Chat App, API, Coding Agent, Enterprise, Voice & Mobile, Gov & Science, Robotics). Hit level milestones (10, 25, 50, 75, 100, 150, 200, 300, 400) for huge multiplicative income jumps.
-5. **Scale Infrastructure**: Hire Engineers, Sales Reps, and AI Researchers; purchase GPU Clusters and construct Infrastructure Buildings (Server Room, Data Center, Mega Campus, Gigawatt Site, Orbital Compute).
-6. **Compete for Market Share**: Rival labs automatically train and release models on dynamic timers. The player's relative benchmark score determines market share, granting a 0.5x to 2.0x global revenue multiplier.
-7. **Invest**: Take venture capital funding for 120s revenue lump sums and permanent multipliers; trade rival stocks with dynamic pricing.
+1. **Tap to Earn**: Tap the Claude Treasury card to earn immediate cash: `$0.50 + 5% of incomePerSec` (rate-limited to 10 taps/sec).
+2. **Train Models**: Train sequential models along the Claude ladder (Claude 1, Claude Instant, Claude 2, ..., Claude Omega). Training speed scales with Engineers, GPU Clusters, and Training Upgrades. Boost training actively with taps.
+3. **Launch Models**: Launching a model unlocks higher commercial product tiers, unlocks funding rounds, and applies an exponential multiplier across all revenue.
+4. **Deploy Products**: Purchase commercial product levels (Chat App, API, Coding Agent, Enterprise, Voice & Mobile, Gov & Science, Robotics) using `x1`, `x10`, or `Max` buy modes. Hit milestone levels (10, 25, 50, 75, 100, 150, 200, 300, 400) for huge multiplicative revenue jumps with audio-visual milestone feel.
+5. **Hire Managers**: Hire Product Managers to gain a $\times 1.5$ product revenue boost and automated level purchasing (1 lvl/sec when cost $\le 10\%$ cash). Hire the Training Lead (auto-starts training when cost $\le 25\%$ cash) and Launch Lead (auto-launches ready models).
+6. **Buy Upgrades**: Purchase permanent product upgrades ($\times 3$ each), global upgrades ($\times 2$ to $\times 5$ all revenue), and training speed upgrades ($\times 1.5$ to $\times 2$ training speed).
+7. **Scale Infrastructure**: Hire Engineers, Sales Reps, and AI Researchers; deploy GPU Clusters and construct Infrastructure Buildings.
+8. **Compete for Market Share**: Rival labs automatically train and release models on dynamic timers. Relative benchmark scores determine market share, granting a $0.5\times$ to $2.0\times$ revenue multiplier.
+9. **Invest**: Take venture funding for lump sums and permanent revenue boosts; trade rival stocks with dynamic pricing.
 
 ---
 
 ## 3. Revenue & Economy Formulas
 
 ### Total Income Per Second
-$$\text{Income} = \left(\sum \text{Product Income}\right) \times \text{Model Mult} \times \text{Share Mult} \times (1 + 0.03 \times \text{Sales}) \times \text{Building Mult} \times \text{Funding Mult}$$
+$$\text{Income} = \left(\sum \text{Product Income} \times \text{ManagerMult} \times \text{ProductUpgradeMult}\right) \times \text{ModelMult} \times \text{ShareMult} \times (1 + 0.03 \times \text{Sales}) \times \text{BuildingMult} \times \text{FundingMult} \times \text{GlobalUpgradeMult}$$
 
 There are **no salaries, upkeep, freshness decay, or data quality maintenance**. All purchases provide strictly permanent progression.
 
 ### Commercial Products
-Each product has a base cost, exponential cost growth, and base income per level:
 $$\text{Cost}(\text{level}) = \text{round}\left(\text{baseCost} \times \text{costGrowth}^{\text{level}}\right)$$
-$$\text{Income}(\text{level}) = \text{level} \times \text{incomePerLevel} \times \text{MilestoneMultiplier}$$
+$$\text{Income}(\text{level}) = \text{level} \times \text{baseIncome} \times \text{MilestoneMultiplier}$$
 
-| Product | Unlock Model | Base Cost | Cost Growth | Base Income/lvl |
-| :--- | :--- | :--- | :--- | :--- |
-| **Chat App** | Game Start | $5 | 1.12 | $0.38/s |
-| **API** | Claude Instant | $75 | 1.17 | $3.00/s |
-| **Coding Agent** | Claude 3 Haiku | $1,100 | 1.19 | $24.00/s |
-| **Enterprise** | Claude 3.5 Haiku | $16,000 | 1.20 | $190.00/s |
-| **Voice & Mobile** | Claude Sonnet 4 | $240,000 | 1.21 | $1,600.00/s |
-| **Gov & Science** | Claude Sonnet 4.5 | $3,600,000 | 1.22 | $13,000.00/s |
-| **Robotics** | Claude Opus 4.8 | $55,000,000 | 1.23 | $110,000.00/s |
+| Product | Unlock Model | Base Cost | Cost Growth | Base Income/lvl | Manager Cost ($\text{baseCost} \times 1000$) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Chat App** | Game Start | $5 | 1.12 | $0.38/s | $5,000 |
+| **API** | Claude Instant | $75 | 1.17 | $3.00/s | $75,000 |
+| **Coding Agent** | Claude 3 Haiku | $1,100 | 1.19 | $24.00/s | $1,100,000 |
+| **Enterprise** | Claude 3.5 Haiku | $16,000 | 1.20 | $190.00/s | $16,000,000 |
+| **Voice & Mobile** | Claude Sonnet 4 | $240,000 | 1.21 | $1,600.00/s | $240,000,000 |
+| **Gov & Science** | Claude Sonnet 4.5 | $3,600,000 | 1.22 | $13,000.00/s | $3,600,000,000 |
+| **Robotics** | Claude Opus 4.8 | $55,000,000 | 1.23 | $110,000.00/s | $55,000,000,000 |
 
 #### Milestone Multipliers
-Level milestones trigger automatically for each product:
 - Level 10: $\times 2$
 - Level 25: $\times 2$ (cumulative $\times 4$)
 - Level 50: $\times 2$ (cumulative $\times 8$)
@@ -68,116 +68,122 @@ Level milestones trigger automatically for each product:
 
 ---
 
-## 4. Models & Training Progression
+## 4. Bulk Buy & Geometric Series Math
 
-Models are trained strictly in sequence (Step $k = \text{modelStep} + 1$).
+To support `x1`, `x10`, and `Max` buying across Products and Team/Compute:
 
-### Model Cost & Base Time
-$$\text{Cost}(k) = \text{round}\left(10 \times 3.0^k\right)$$
-$$\text{BaseSeconds}(k) = 6 + 4.0 \times k^{1.40}$$
+### Cost of $N$ Levels from Level $L$
+$$\text{Cost}(L, N) = \sum_{i=0}^{N-1} B \cdot r^{L + i} = B \cdot r^L \frac{r^N - 1}{r - 1} \quad (r \ne 1)$$
+where $B$ is base cost and $r$ is cost growth factor.
 
-### Training Speed & Boosting
-$$\text{Speed} = (1 + 0.05 \times \text{Engineers}) \times (1 + 0.06 \times \text{GPU Clusters})$$
-- Tapping **Boost Training** removes $\max(0.25\text{s}, 0.015 \times \text{totalSeconds})$ of progress time per tap.
-- Rate limit: 8 taps per second.
+### Maximum Affordable Levels with Cash $C$
+$$N_{\max} = \left\lfloor \frac{\ln\left(1 + \frac{C(r - 1)}{B \cdot r^L}\right)}{\ln(r)} \right\rfloor$$
+- If $C < B \cdot r^L$, $N_{\max} = 0$.
+- Precision rounding and boundary step adjustments guarantee exact cash reconciliation.
 
-### Benchmark Score & Multiplier
-$$\text{Score}(\text{step}) = \text{round}\left(10 \times 1.32^{\text{step}} \times (1 + 0.02 \times \text{Researchers})\right)$$
-$$\text{Model Multiplier}(\text{step}) = 1.08^{\text{step} + 1} \quad (\text{or } 1.0 \text{ if no model released})$$
-
----
-
-## 5. Market Share & Rival Dynamics
-
-### Market Share Calculation
-$$\text{Market Share} = \frac{\text{PlayerScore}^2}{\text{PlayerScore}^2 + \sum \text{RivalScores}^2}$$
-$$\text{Share Multiplier} = 0.5 + 1.5 \times \text{Market Share}$$
-- Range: $0.5\times$ (0% share) to $2.0\times$ (100% share).
-
-### Rival Timers & Rubber-Banding
-$$\text{Base Timer}(\text{step}) = \text{uniform}(40, 80) \times 1.18^{\text{step}}$$
-- **Rubber-band rule**:
-  - If a rival is $>2$ steps ahead of the player, its countdown timer progresses at $0.5\times$ speed.
-  - If a rival is $>2$ steps behind the player, its countdown timer progresses at $2.0\times$ speed.
+### Buy Amount Modes
+- **x1**: Buys 1 level.
+- **x10**: Buys up to 10 levels (as many as cash allows, min 1 if affordable). Button displays count and total cost: `+7 · $1.2K`.
+- **Max**: Buys as many as cash allows ($N_{\max}$). If affordable, button displays `+N · $Cost`; if unaffordable, displays `+1 · $Cost` (disabled).
 
 ---
 
-## 6. Team & Infrastructure
+## 5. Managers System
 
-| Item | Formula / Cost | Permanent Benefit |
-| :--- | :--- | :--- |
-| **Engineers** | $\text{round}(30 \times 1.16^n)$ | $+5\%$ model training speed each |
-| **Sales Reps** | $\text{round}(40 \times 1.17^n)$ | $+3\%$ total revenue each |
-| **AI Researchers** | $\text{round}(60 \times 1.18^n)$ | $+2\%$ benchmark score each |
-| **GPU Clusters** | $\text{round}(50 \times 1.18^n)$ | $+6\%$ model training speed each |
-| **Server Room** | $10,000 | $\times 2$ all revenue |
-| **Data Center** | $500,000 | $\times 2$ all revenue |
-| **Mega Campus** | $25,000,000 | $\times 2$ all revenue |
-| **Gigawatt Site** | $1,250,000,000 | $\times 2$ all revenue |
-| **Orbital Compute** | $60,000,000,000 | $\times 2$ all revenue |
+Managers are hired from the **Managers** sub-tab in Shop:
 
----
+### Operations Leads
+- **Training Lead** ($25,000): Automatically starts the next Claude model when its cost is $\le 25\%$ of current cash.
+- **Launch Lead** ($10,000): Automatically launches models immediately upon training completion.
 
-## 7. Venture Funding & Stock Market
+### Product Managers
+- Cost: $\text{baseCost} \times 1,000$
+- Multiplier: $\times 1.5$ product revenue.
+- Automation: Automatically buys 1 level per second when the level cost $\le 10\%$ of cash.
+- Control: Toggleable **Auto ON / Auto OFF** switch for each hired product manager.
 
-### Funding Rounds
-Requires launching a milestone model. Pays a lump sum equal to $\max(\text{minLumpSum}, 120 \times \text{incomePerSec})$ and permanently boosts income:
-
-| Round | Unlock Requirement | Min Lump Sum | Permanent Multiplier |
+| Manager | Product | Cost | Role & Effect |
 | :--- | :--- | :--- | :--- |
-| **Seed** | Claude 2 | $1,000 | $+10\%$ ($\times 1.10$) |
-| **Series A** | Claude 3 Opus | $10,000 | $+15\%$ ($\times 1.15$) |
-| **Series B** | Claude 3.7 Sonnet | $100,000 | $+20\%$ ($\times 1.20$) |
-| **Series C** | Claude Opus 4.5 | $1,000,000 | $+25\%$ ($\times 1.25$) |
-| **Series D** | Claude Opus 5 | $10,000,000 | $+30\%$ ($\times 1.30$) |
+| **Training Lead** | Model Training | $25,000 | Auto-starts models when cost $\le 25\%$ cash |
+| **Launch Lead** | Model Deployment | $10,000 | Auto-launches ready models immediately |
+| **Head of Chat** | Chat App | $5,000 | $\times 1.5$ Chat income · Auto-buys levels |
+| **Head of API** | API | $75,000 | $\times 1.5$ API income · Auto-buys levels |
+| **Head of Code** | Coding Agent | $1,100,000 | $\times 1.5$ Code income · Auto-buys levels |
+| **Head of Enterprise** | Enterprise | $16,000,000 | $\times 1.5$ Enterprise income · Auto-buys levels |
+| **Head of Mobile** | Voice & Mobile | $240,000,000 | $\times 1.5$ Mobile income · Auto-buys levels |
+| **Head of Science** | Gov & Science | $3,600,000,000 | $\times 1.5$ Science income · Auto-buys levels |
+| **Head of Robotics** | Robotics | $55,000,000,000 | $\times 1.5$ Robotics income · Auto-buys levels |
 
-### Stock Market
-- Players can trade shares in the 4 rivals (ChatGPT, Gemini, Grok, DeepSeek).
-- Share price: $\max(10, \text{round}(\text{RivalScore} \times 3 + 20))$.
-- Trading fee: $2\%$ on purchase and sale.
-- Portfolio cap: 200 shares per competitor.
+---
+
+## 6. Upgrades System
+
+Upgrades are permanent technological breakthroughs available in the **Upgrades** sub-tab in Shop (showing the 6 cheapest unowned upgrades with a collapsed "Owned" list), plus the next affordable upgrade highlighted as a shortcut on the Lab screen:
+
+### 1. Product Upgrades (4 per product, each $\times 3$ product revenue)
+Costs: $\text{baseCost} \times 10^3, 10^5, 10^7, 10^9$.
+- **Chat App**: Better Prompts ($5K), Long Context ($500K), Memory ($50M), Voice Mode ($5B)
+- **API**: Batch Endpoints ($75K), Streaming Responses ($7.5M), Prompt Caching ($750M), Dedicated Capacity ($75B)
+- **Coding Agent**: Syntax Tree Analysis ($1.1M), Repo-Level Context ($110M), Autonomous Debugging ($11B), Self-Healing Tests ($1.1T)
+- **Enterprise**: SOC2 Compliance ($16M), VPC Peering ($1.6B), Zero-Data Retention ($160B), SLA Guarantees ($16T)
+- **Voice & Mobile**: On-Device Quantization ($240M), Neural Engine Offload ($24B), Sub-10ms Audio Pipeline ($2.4T), Always-On Assistant ($240T)
+- **Gov & Science**: Literature Synthesis ($3.6B), Protein Folding ($360B), Hypothesis Generation ($36T), Automated Lab Trials ($3.6Qa)
+- **Robotics**: Sim-to-Real Transfer ($55B), Vision-Language-Action ($5.5T), Tactile Feedback ($550T), Fleet Consensus ($55Qa)
+
+### 2. Global Revenue Upgrades (multiplies all product revenue)
+- **RLHF**: $250,000 ($\times 2$ All Revenue)
+- **Constitutional AI**: $50,000,000 ($\times 2$ All Revenue)
+- **Mixture of Experts**: $5,000,000,000 ($\times 3$ All Revenue)
+- **Reasoning Mode**: $500,000,000,000 ($\times 3$ All Revenue)
+- **Agentic Era**: $50,000,000,000,000 ($\times 5$ All Revenue)
+
+### 3. Training Speed Upgrades
+- **Flash Attention**: $5,000 ($\times 1.5$ Training Speed)
+- **Distillation**: $2,000,000 ($\times 2$ Training Speed)
+- **Custom Chips**: $1,000,000,000 ($\times 2$ Training Speed)
+
+---
+
+## 7. Milestone Feel & Lab Shortcuts
+
+### Milestone Feel (v0.4.0)
+When any product crosses a milestone level (10, 25, 50, 75, 100, 150, 200, 300, 400):
+1. **Toast Notification**: `[Product Name] x2!` (or `x3!`).
+2. **Row Border Flash**: 200ms highlight in `--money` (`#34d399`) with glow.
+3. **Sound Chime**: Crisp higher-pitched Web Audio chord (`playMilestone`).
+4. **Milestone Bar**: An always-visible progress bar on every product card displaying progress towards the next milestone.
+
+### Lab Shortcuts
+- **Best Buy Suggestion Row**: Situated under the Goal card on Lab. Dynamically calculates the purchase across Products, Upgrades, Managers, and Team with the highest immediate revenue gain per dollar spent. Displays a dedicated "Buy" button.
+- **Next Upgrade Card**: Situated directly below the Products list on Lab. Displays the next cheapest affordable unowned upgrade with its name, description, and direct "Buy" button.
 
 ---
 
 ## 8. Balance Tuning & Simulation Verification
 
-Per design guidelines, balance constants were tuned by $\le 40\%$ from initial draft numbers to satisfy all 6 automated 60-minute headless simulation benchmarks:
+The balance has been verified using a 60-minute headless scripted tycoon simulation (`src/game/simulation.test.ts`), modeling an active player who hires managers, buys upgrades (cheapest first), and uses `Max` on products.
 
-### Old vs. Tuned Constants Table
-
-| Constant | Original Draft | Tuned Value | Change (%) | Reason for Adjustment |
-| :--- | :--- | :--- | :--- | :--- |
-| `modelBaseCost` | 25 | 10 | $-60\%$ (draft) / $-36\%$ | Permits early player to start Claude 1 and Claude 2 within target pacing |
-| `modelCostGrowth` | 2.60 | 3.00 | $+15.4\%$ | Prevents player from exceeding step 15 at 60 minutes |
-| `trainingTimeScale` | 4.0 | 4.0 | $0.0\%$ | Maintained |
-| `trainingTimeExponent` | 1.25 | 1.40 | $+12.0\%$ | Ensures later models take substantial time to train |
-| `modelIncomeMultiplierBase` | 1.60 | 1.08 | $-32.5\%$ | Controls hyper-exponential runaway income scaling |
-| `chat.baseIncome` | 0.60 | 0.38 | $-36.7\%$ | Prevents early Chat App from overflowing 10m income ceiling |
-| `chat.costGrowth` | 1.07 | 1.12 | $+4.7\%$ | Moderates early level accumulation |
-| `api.baseIncome` | 5.00 | 3.00 | $-40.0\%$ | Balances mid-game transition when API unlocks |
-| `api.costGrowth` | 1.08 | 1.17 | $+8.3\%$ | Bridges transition to coding agents |
-| `code.baseIncome` | 40.00 | 24.00 | $-40.0\%$ | Prevents coding agent runaway at 10 minutes |
-| `code.costGrowth` | 1.09 | 1.19 | $+9.2\%$ | Keeps purchase decisions competitive with team hires |
-| `enterprise.baseIncome` | 320.00 | 190.00 | $-40.6\%$ | Calibrates 10-minute income within $100–$10,000/s window |
-| `enterprise.costGrowth` | 1.10 | 1.20 | $+9.1\%$ | Keeps enterprise tier grounded |
-
-### Automated Simulation Results (`src/game/simulation.test.ts`)
-The 60-minute active scripted player test yields:
+### Simulation Verification Results
 - **First Purchase**: Second 0 ($\le 1\text{s}$) — **PASS**
-- **Max Drought (First 10 min)**: 3s ($\le 30\text{s}$) — **PASS**
-- **Claude 2 Launch**: 136s ($\le 150\text{s}$, 2m 16s) — **PASS**
-- **Claude 3 Opus Launch**: 516s ($\le 720\text{s}$, 8m 36s) — **PASS**
-- **Final Model at 60m**: Claude Opus 4.5, Step 15 ($\le 15$) — **PASS**
-- **Income at 10 min**: $6,513.95/s (between $\$100/\text{s}$ and $\$10,000/\text{s}$) — **PASS**
+- **Max Drought (First 10m)**: 2s ($\le 30\text{s}$) — **PASS**
+- **Claude 2 Launch**: 132s ($\le 150\text{s}$, 2m 12s) — **PASS**
+- **Claude 3 Opus Launch**: 489s ($\le 720\text{s}$, 8m 09s) — **PASS**
+- **30-Minute Milestones**:
+  - Hired Managers: 8 ($\ge 3$) — **PASS**
+  - Purchased Upgrades: 21 ($\ge 5$) — **PASS**
+- **Final Model at 60m**: Claude 9, Step 28 ($\ge 12$) — **PASS**
+- **10-Minute Income**: $\$30,406.21/\text{s}$ ($\ge \$50/\text{s}$) — **PASS**
 
 ---
 
-## 9. Save System & Migration
+## 9. Save System & Backward Compatibility
 
-- Primary Save Key: `modelfoundry.save.v2`
-- Backup Key: `modelfoundry.save.v2.backup`
-- **V1 Migration**: When `modelfoundry.save.v1` is detected:
-  1. The v1 data is safely copied untouched to `modelfoundry.save.v1.backup`.
-  2. The game starts with a clean v2 state with `showFreshStartSheet: true`.
-  3. A bottom-sheet modal informs the player: *"New Claude HQ. Fresh start for the new game."* with an "OK" button.
-- Corrupted or unparseable JSON falls back cleanly to a fresh state without throwing.
+- **Save Key**: `modelfoundry.save.v2`
+- **Backup Key**: `modelfoundry.save.v2.backup`
+- **Safe Defaults**: When an earlier v2 save (v0.3.0) is loaded:
+  - `managers`: `{}`
+  - `managerAutoBuy`: `{}`
+  - `upgrades`: `{}`
+  - `buyAmount`: `'1'`
+  - `autoBuyAccumulator`: `0`
+- Unit tests in `src/game/save.test.ts` guarantee no crashes or corruption when loading legacy saves.

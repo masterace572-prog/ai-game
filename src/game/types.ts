@@ -61,6 +61,29 @@ export interface EventLogEntry {
   timestamp: number;
 }
 
+export type BuyAmount = '1' | '10' | 'max';
+
+export interface ManagerDef {
+  id: string;
+  name: string;
+  role: string;
+  cost: number;
+  productId?: ProductId;
+  type: 'product' | 'training_lead' | 'launch_lead';
+  description: string;
+  multiplier?: number;
+}
+
+export interface UpgradeDef {
+  id: string;
+  name: string;
+  cost: number;
+  category: 'product' | 'global' | 'training';
+  productId?: ProductId;
+  multiplier: number;
+  description: string;
+}
+
 export interface GameState {
   version: 2;
   savedAt: number;
@@ -88,6 +111,12 @@ export interface GameState {
   achievements?: Partial<Record<string, boolean>>;
   tutorialDone?: boolean;
   eventLogs?: EventLogEntry[];
+  // v0.4.0 additions
+  managers?: Record<string, boolean>;
+  managerAutoBuy?: Record<string, boolean>;
+  upgrades?: Record<string, boolean>;
+  buyAmount?: BuyAmount;
+  autoBuyAccumulator?: number;
 }
 
 export type AchievementId =
