@@ -12,6 +12,7 @@ import { Icon } from './Icon';
 import { Button } from './Button';
 import { GameRow } from './GameRow';
 import { Modal } from './Modal';
+import { APP_VERSION } from '../game/balance';
 import type { GameState } from '../game/types';
 
 export interface SettingsScreenProps {
@@ -120,6 +121,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Sound */}
         <GameRow
           icon={soundOn ? Volume2 : VolumeX}
+          iconColor="var(--compute)"
           title="Sound"
           value={soundOn ? 'On' : 'Off'}
           button={
@@ -136,6 +138,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Motion */}
         <GameRow
           icon={Zap}
+          iconColor="var(--gold)"
           title="Motion"
           value={reduceMotion ? 'Reduced' : 'Full'}
           button={
@@ -152,6 +155,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Export */}
         <GameRow
           icon={Download}
+          iconColor="var(--text-secondary)"
           title="Export"
           button={
             <Button
@@ -170,6 +174,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Import */}
         <GameRow
           icon={Upload}
+          iconColor="var(--text-secondary)"
           title="Import"
           button={
             <Button
@@ -189,7 +194,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* Wipe */}
         <GameRow
           icon={Trash2}
-          iconColor="var(--negative)"
+          iconColor="var(--danger)"
           title="Wipe"
           button={
             <Button
@@ -352,7 +357,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         }}
       >
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          Model Foundry v0.1.1
+          Model Foundry v{APP_VERSION}
         </span>
         <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
           Offline game. Not a real company.

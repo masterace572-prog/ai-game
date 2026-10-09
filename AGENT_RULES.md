@@ -67,72 +67,63 @@ After every phase:
 - Never commit `android/local.properties` (it contains one computer's SDK path). It must be in `.gitignore`. Do not commit `node_modules/`, `dist/`, `android/.gradle/`, `android/app/build/`, or `android/build/`.
 - Do not commit an APK.
 
-## Phone UI
+## Phone UI & Visual system
 
 - Portrait layout. It must look right at 360 px wide. No horizontal page scroll.
 - Touch targets at least 48 px tall. No hover-only controls. No tiny links.
-- Use only local files. No Google Fonts, no icon CDN, no remote images, no analytics script.
+- Use only local files. No Google Fonts, no icon CDN, no remote images, no analytics script. Fonts bundled with `@fontsource/inter` (weights 400, 500, 600, 700, 800).
 - The WebView must work with the network turned off.
 
-## Visual rules (hard)
-
+Hard visual rules:
 - No emoji or pictographs anywhere in the UI.
-- No linear, radial, or conic gradients.
-- No neon or blur glow.
-- No box-shadow, text-shadow, or drop-shadow.
-- Components use only the tokens defined in `src/ui/tokens.css` and do not introduce new hex colours.
-- Icons only from `lucide-react` at stroke 1.75 and sizes: 22 nav, 20 row, 16 inline, 24 empty.
-- Font: Inter bundled with `@fontsource/inter`, weights 400, 500, and 600. No font CDN, no Google Fonts.
-- Page background is `--bg` (`#111110`). Font family is `--font`. Antialiased. No horizontal scroll.
+- Icons only from `lucide-react` at stroke 1.75 and standard sizes: 22 nav, 20 row, 16 inline, 24 empty.
+- No box-shadow, text-shadow, or outer glow.
+- Components use only the tokens defined in `src/ui/tokens.css` and do not introduce unapproved hex colours.
+- Gradients: only allowed on cash hero card and goal card (subtle 135deg two-stop gradient from `color-mix(in srgb, var(--brand-claude) 22%, var(--surface))` to `var(--surface)`).
+- Page background is `--bg` (`#0d0d10`). Font family is `--font`. Antialiased. No horizontal scroll.
 
 Spacing and geometry:
-- Spacing: 8pt grid (4, 8, 12, 16, 24, 32, 40).
-- Radius: 8 controls, 12 cards, 16 sheet top.
-- Surface: flat region with bg `--surface`, 1px `--border`, radius 12, padding 16. No shadow.
-- Button: primary (height 48, radius 8, bg `--accent`, text `--on-accent`, weight 600, pressed bg `--accent-pressed`) and secondary (height 48, radius 8, transparent, 1px `--border-strong`, text `--text`). No shadow.
+- 8pt grid (page padding 16, gaps 12, sections 24).
+- Radius: cards 16, rows inside cards 12, buttons 12.
+- Surface: flat region with bg `--surface`, 1px `--border`, radius 16, padding 16.
+- Button: primary (height 48, radius 12, bg `--brand-claude`, text `#ffffff`, weight 700) and secondary (height 48, radius 12, bg `--surface-2`, 1px `--border-strong`, text `--text`). Disabled buttons use secondary style at 50% opacity with short reason.
+- Icon tile: 40x40, radius 12, 16% category tint background, lucide icon 20px in full category colour. List rows start with icon tile.
+- Progress bars: 6px tall, radius 3, fill category colour.
 
 Typography:
-- nav: 11/14
-- meta: 12/16
-- label: 13/18
-- body: 16/24 (body never below 14)
-- section: 20/28 weight 600
-- screen title: 28/34 weight 600
-- cash: 32/40 weight 600 with tabular-nums
+- Inter weights: 400, 500, 600, 700, 800.
+- Cash hero: 40px weight 800 with tabular-nums.
+- Section titles: 18px weight 700.
+- Row title: 16px weight 600.
+- Meta / Subtitle: 13px weight 400 or 500.
 - Number format: 999, 1.2K, 3.4M, 2.1B.
 
-Icon map:
-- Lab: Factory
-- Models: Cpu
-- Market: ChartLine
-- Invest: Landmark
-- More: Menu
-- Research: FlaskConical
-- Team: Users
-- Events: Bell
-- Achievements: Award
-- New era: History
-- Settings: Settings
-- GPU: Cpu
-- Data: Database
-- Train: Play
-- Launch: ArrowUpRight
-- Sound: Volume2 and VolumeX
+Tokens:
+- Base: `--bg #0d0d10`, `--surface #16161b`, `--surface-2 #1f1f26`, `--border #2a2a33`, `--border-strong #3a3a46`, `--text #f3f2ee`, `--text-secondary #a9a8b3`, `--text-tertiary #6e6d78`.
+- Categories: `--money #34d399`, `--gold #fbbf24`, `--compute #60a5fa`, `--people #a78bfa`, `--research #2dd4bf`, `--hype #fb923c`, `--danger #f87171`.
+- Brands: `--brand-claude #d97757`, `--brand-openai #10a37f`, `--brand-gemini #4285f4`, `--brand-grok #f2f2f2` (with dark text `#0d0d10`), `--brand-deepseek #4d6bfe`, `--brand-meta #0866ff`, `--brand-mistral #fa520f`, `--brand-qwen #615ced`.
+- 16% tints for tile backgrounds: `color-mix(in srgb, var(--x) 16%, transparent)`.
 
-Rival marks:
-- Monograms, not emoji: 32px square, radius 8, `--surface-2`, 1px `--border`, two letters weight 600 in `--text`.
-- HA, PM, NG, VW, CL, BR for Helix Atelier, Pebble Mind, Northglass, Vesper Workshop, Copperline, Bracket Research.
+Rival and Lab marks:
+- Coloured monogram tiles: 40px square, radius 12, brand-accurate background, weight 700.
+- Claude: CL on `--brand-claude`
+- ChatGPT: GP on `--brand-openai`
+- Gemini: GE on `--brand-gemini`
+- Grok: GR on `--brand-grok` (light tile with dark text `#0d0d10`)
+- DeepSeek: DS on `--brand-deepseek`
+- Llama: LL on `--brand-meta`
+- Mistral: MI on `--brand-mistral`
+- Qwen: QW on `--brand-qwen`
 
 Components and layout spec:
-- Top bar: `--bg`, bottom 1px `--border`, pad 8 16 plus safe-area-top, lab name 16/600 truncated, cash and income tabular on the right, no pill.
-- Stat card: label 13/500 secondary, value 20/600 tabular.
-- List row: min-height 56, bottom border, icon 20.
+- Top bar: `--bg`, bottom 1px `--border`, pad 8 16 plus safe-area-top, lab name 16/600 truncated, cash and income tabular on the right.
+- Stat card: radius 16, label 13/500 secondary, value tabular.
+- List row: min-height 56, bottom border, starts with 40x40 icon tile or monogram tile.
 - Bottom nav: `--bg`, top border, safe-area-bottom, inactive `--text-tertiary`, active `--text` weight 600, no active pill.
-- Progress: height 4, track `--surface-2`, fill `--accent`, no pulse.
-- Toast: surface, 1px border, radius 8, no shadow.
+- Progress: height 6, radius 3, track `--surface-2`, fill category colour, no pulse.
+- Toast: surface, 1px border, radius 12, no shadow.
 - Modal: flat `--scrim`, sheet `--surface`, top radius 16, no blur.
 - Motion: 160ms `cubic-bezier(0.2, 0, 0, 1)`. No bounce or pulse. Reduced motion means no animation.
-- Positive `#8fbfa8` and negative `#d27b6a` are for numbers only, never big fills.
 
 ## Offline and saves
 

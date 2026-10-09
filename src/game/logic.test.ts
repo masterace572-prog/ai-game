@@ -33,6 +33,7 @@ import {
   simulateOfflineCatchUp,
   calculateEraPointsGained,
   canPrestigeNewEra,
+  generateModelName,
   prestigeNewEra,
   createRivalsForEra,
 } from './logic';
@@ -237,6 +238,12 @@ describe('Phase 5: Economy, Shop, Salaries, Stocks & Funding', () => {
 
     const scoreMax = calculateScore(70, 20, 1, 1, 0, 1, 1.08);
     expect(scoreMax).toBe(56);
+  });
+
+  it('generateModelName picks sequentially from CLAUDE_LADDER', () => {
+    expect(generateModelName([])).toBe('Claude 1');
+    expect(generateModelName(['Claude 1'])).toBe('Claude Instant');
+    expect(generateModelName(['Claude 1', 'Claude Instant'])).toBe('Claude 2');
   });
 
   it('the 20% GPU time floor', () => {

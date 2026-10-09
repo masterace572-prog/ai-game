@@ -5,8 +5,11 @@ import { ChevronRight } from 'lucide-react';
 export interface GameRowProps {
   icon?: LucideIcon;
   iconColor?: string;
+  iconTileBg?: string;
+  customTile?: React.ReactNode;
   title: string;
   subtitle?: string;
+  titleWrap?: boolean;
   value?: React.ReactNode;
   valueColor?: string;
   button?: React.ReactNode;
@@ -18,8 +21,11 @@ export interface GameRowProps {
 export const GameRow: React.FC<GameRowProps> = ({
   icon: IconComponent,
   iconColor = 'var(--text-secondary)',
+  iconTileBg,
+  customTile,
   title,
   subtitle,
+  titleWrap = false,
   value,
   valueColor = 'var(--text)',
   button,
@@ -28,6 +34,12 @@ export const GameRow: React.FC<GameRowProps> = ({
   disabled = false,
 }) => {
   const isClickable = Boolean(onClick && !disabled && !button);
+
+  const tileBackground =
+    iconTileBg ||
+    (iconColor && !iconColor.startsWith('var(--text')
+      ? `color-mix(in srgb, ${iconColor} 16%, transparent)`
+      : 'var(--surface-2)');
 
   return (
     <div
@@ -57,32 +69,37 @@ export const GameRow: React.FC<GameRowProps> = ({
         background: 'transparent',
       }}
     >
-      {IconComponent && (
+      {customTile ? (
+        <div style={{ flexShrink: 0 }}>{customTile}</div>
+      ) : IconComponent ? (
         <div
           style={{
             flexShrink: 0,
-            width: 20,
-            height: 20,
+            width: 40,
+            height: 40,
+            borderRadius: '12px',
+            backgroundColor: tileBackground,
+            color: iconColor,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: iconColor,
           }}
         >
           <IconComponent size={20} strokeWidth={1.75} />
         </div>
-      )}
+      ) : null}
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <span
           style={{
             fontSize: '16px',
-            lineHeight: '20px',
-            fontWeight: 500,
+            lineHeight: '22px',
+            fontWeight: 600,
             color: 'var(--text)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            overflow: titleWrap ? 'visible' : 'hidden',
+            textOverflow: titleWrap ? 'clip' : 'ellipsis',
+            whiteSpace: titleWrap ? 'normal' : 'nowrap',
+            wordBreak: titleWrap ? 'break-word' : undefined,
           }}
         >
           {title}
@@ -90,13 +107,14 @@ export const GameRow: React.FC<GameRowProps> = ({
         {subtitle && (
           <span
             style={{
-              fontSize: '12px',
-              lineHeight: '16px',
+              fontSize: '13px',
+              lineHeight: '18px',
               color: 'var(--text-secondary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              marginTop: '2px',
+              overflow: titleWrap ? 'visible' : 'hidden',
+              textOverflow: titleWrap ? 'clip' : 'ellipsis',
+              whiteSpace: titleWrap ? 'normal' : 'nowrap',
+              wordBreak: titleWrap ? 'break-word' : undefined,
+              marginTop: '1px',
             }}
           >
             {subtitle}
@@ -109,7 +127,7 @@ export const GameRow: React.FC<GameRowProps> = ({
           style={{
             flexShrink: 0,
             fontVariantNumeric: 'tabular-nums',
-            fontSize: '16px',
+            fontSize: '15px',
             fontWeight: 600,
             color: valueColor,
             textAlign: 'right',

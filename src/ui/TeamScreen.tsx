@@ -80,6 +80,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 1. Buy GPU */}
         <GameRow
           icon={Cpu}
+          iconColor="var(--compute)"
           title="Buy GPU"
           value={`${usableGpus}/${gameState.gpus}`}
           button={
@@ -101,6 +102,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 2. Hire */}
         <GameRow
           icon={Users}
+          iconColor="var(--people)"
           title="Hire"
           value={gameState.researchers}
           button={
@@ -122,6 +124,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 3. Data */}
         <GameRow
           icon={Database}
+          iconColor="var(--research)"
           title="Data"
           value={`${gameState.dataQuality}/100`}
           button={
@@ -145,6 +148,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 4. Cooling */}
         <GameRow
           icon={Fan}
+          iconColor="var(--compute)"
           title="Cooling"
           value={`${coolingLevel}/${COOLING_MAX_PURCHASES}`}
           button={
@@ -168,6 +172,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 5. Snacks */}
         <GameRow
           icon={Coffee}
+          iconColor="var(--people)"
           title="Snacks"
           value={gameState.officeSnacks ? 'Active' : 'None'}
           button={
@@ -191,6 +196,7 @@ export const TeamScreen: React.FC<TeamScreenProps> = ({
         {/* 6. Marketing */}
         <GameRow
           icon={Megaphone}
+          iconColor="var(--hype)"
           title="Marketing"
           value={
             marketingActive

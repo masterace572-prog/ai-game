@@ -137,4 +137,33 @@ describe('Save / Load helpers', () => {
     expect(loaded.state.currentTraining?.proposedName).toBe('Velvet Orbit');
     expect(loaded.state.currentTraining?.progressSeconds).toBe(50);
   });
+
+  it('migrates old save by renaming rivals and updating default lab name to Claude', () => {
+    const storage = new MemoryStorage();
+    const oldSave = {
+      version: 1,
+      cash: 50000,
+      labName: 'Little Lamp Lab',
+      labNameConfirmed: false,
+      rivals: [
+        { id: 'helix', name: 'Helix Atelier', shortCode: 'HA', bestScore: 18 },
+        { id: 'pebble', name: 'Pebble Mind', shortCode: 'PM', bestScore: 9 },
+        { id: 'northglass', name: 'Northglass', shortCode: 'NG', bestScore: 14 },
+        { id: 'vesper', name: 'Vesper Workshop', shortCode: 'VW', bestScore: 11 },
+      ],
+    };
+    storage.setItem(SAVE_KEY, JSON.stringify(oldSave));
+
+    const loaded = loadGameState(storage);
+    expect(loaded.state.labName).toBe('Claude');
+    expect(loaded.state.labNameConfirmed).toBe(true);
+    expect(loaded.state.rivals[0].name).toBe('ChatGPT');
+    expect(loaded.state.rivals[0].shortCode).toBe('GP');
+    expect(loaded.state.rivals[1].name).toBe('DeepSeek');
+    expect(loaded.state.rivals[1].shortCode).toBe('DS');
+    expect(loaded.state.rivals[2].name).toBe('Gemini');
+    expect(loaded.state.rivals[2].shortCode).toBe('GE');
+    expect(loaded.state.rivals[3].name).toBe('Grok');
+    expect(loaded.state.rivals[3].shortCode).toBe('GR');
+  });
 });

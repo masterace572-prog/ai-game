@@ -73,10 +73,10 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
             <GameRow
               key={`${ev.id}-${idx}`}
               icon={Radio}
-              iconColor="var(--primary)"
+              iconColor="var(--hype)"
               title={ev.title}
               value={`${Math.ceil(ev.remainingSeconds)}s left`}
-              valueColor="var(--primary)"
+              valueColor="var(--hype)"
             />
           ))}
         </div>
@@ -106,6 +106,7 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
             <GameRow
               key={log.id}
               icon={Bell}
+              iconColor="var(--hype)"
               title={log.title}
               subtitle={new Date(log.timestamp).toLocaleTimeString([], {
                 hour: '2-digit',

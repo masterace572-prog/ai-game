@@ -73,10 +73,10 @@ export const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
             <GameRow
               key={id}
               icon={Award}
-              iconColor={isUnlocked ? 'var(--accent)' : 'var(--text-tertiary)'}
+              iconColor={isUnlocked ? 'var(--gold)' : 'var(--text-tertiary)'}
               title={def.name}
               value={isUnlocked ? 'Got' : def.bonusText}
-              valueColor={isUnlocked ? 'var(--accent)' : 'var(--text-secondary)'}
+              valueColor={isUnlocked ? 'var(--gold)' : 'var(--text-secondary)'}
             />
           );
         })}

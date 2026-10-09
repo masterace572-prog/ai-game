@@ -297,6 +297,7 @@ export const ModelsScreen: React.FC<ModelsScreenProps> = ({
           <>
             <GameRow
               icon={Award}
+              iconColor="var(--gold)"
               title={gameState.bestLaunchedModel.name}
               subtitle={`${MODEL_SIZES[gameState.bestLaunchedModel.sizeId]?.name ?? 'Model'} · Freshness ${Math.round(
                 (gameState.playerFreshness ?? 1) * 100

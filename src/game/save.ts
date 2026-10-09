@@ -29,10 +29,10 @@ export function getDefaultStorage(): StorageLike | null {
 
 export function createDefaultRivals(): RivalState[] {
   const shortCodeMap: Record<string, string> = {
-    helix: 'HA',
-    pebble: 'PM',
-    northglass: 'NG',
-    vesper: 'VW',
+    helix: 'GP',
+    pebble: 'DS',
+    northglass: 'GE',
+    vesper: 'GR',
   };
   const preferredMap: Record<string, RivalState['preferredSizes']> = {
     helix: ['medium', 'large'],
@@ -66,7 +66,7 @@ export function createDefaultRivals(): RivalState[] {
 
 export function createInitialState(
   labName: string = DEFAULT_LAB_NAME,
-  labNameConfirmed: boolean = false
+  labNameConfirmed: boolean = true
 ): GameState {
   return {
     version: 1,
@@ -167,10 +167,41 @@ function parseState(raw: string | null): GameState | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.version === 1 && typeof parsed.cash === 'number') {
+      const rivalNameMap: Record<string, { name: string; shortCode: string }> = {
+        helix: { name: 'ChatGPT', shortCode: 'GP' },
+        pebble: { name: 'DeepSeek', shortCode: 'DS' },
+        northglass: { name: 'Gemini', shortCode: 'GE' },
+        vesper: { name: 'Grok', shortCode: 'GR' },
+        copperline: { name: 'Llama', shortCode: 'LL' },
+        bracket: { name: 'Mistral', shortCode: 'MI' },
+      };
+
+      const rawRivals: RivalState[] =
+        Array.isArray(parsed.rivals) && parsed.rivals.length > 0
+          ? parsed.rivals
+          : createDefaultRivals();
+
+      const updatedRivals = rawRivals.map((rival: RivalState) => {
+        const match = rivalNameMap[rival.id];
+        if (match) {
+          return {
+            ...rival,
+            name: match.name,
+            shortCode: match.shortCode,
+          };
+        }
+        return rival;
+      });
+
+      const labName =
+        parsed.labName === 'Little Lamp Lab' || !parsed.labName ? 'Claude' : parsed.labName;
+
       return {
         ...parsed,
+        labName,
+        labNameConfirmed: true,
         playerFreshness: parsed.playerFreshness ?? 1.0,
-        rivals: Array.isArray(parsed.rivals) && parsed.rivals.length > 0 ? parsed.rivals : createDefaultRivals(),
+        rivals: updatedRivals,
         coolingPurchases: parsed.coolingPurchases ?? 0,
         officeSnacks: parsed.officeSnacks ?? false,
         salaryMultiplier: parsed.salaryMultiplier ?? 1.0,

@@ -107,6 +107,7 @@ export const ResearchScreen: React.FC<ResearchScreenProps> = ({
             <GameRow
               key={nodeId}
               icon={FlaskConical}
+              iconColor="var(--research)"
               title={def.name}
               button={
                 <Button

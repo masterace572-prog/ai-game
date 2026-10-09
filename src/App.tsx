@@ -3,10 +3,12 @@ import {
   Users,
   Play,
   ArrowUpRight,
-  Award,
   ChevronLeft,
   Cpu,
   Database,
+  DollarSign,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import { Button } from './ui/Button';
@@ -37,6 +39,7 @@ import {
   startTraining,
   launchModel,
   getUsableGpus,
+  getEffectivePowerCap,
   getIncomePerSec,
   buyGpu,
   hireResearcher,
@@ -438,6 +441,7 @@ export const App: React.FC = () => {
 
   // Derived values for Lab tab
   const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
+  const effectivePowerCap = getEffectivePowerCap(gameState);
 
   // Cash display count-up hook (300ms, snaps if reduce motion)
   const [displayCash, setDisplayCash] = useState(gameState.cash);
@@ -519,61 +523,136 @@ export const App: React.FC = () => {
               gap: '24px',
             }}
           >
-            {/* 1. Cash (32px) + 2. Income (formatRate) + 3. Next Goal */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {/* Cash Hero Card */}
+            <div
+              style={{
+                padding: '20px',
+                borderRadius: '16px',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--brand-claude) 22%, var(--surface)) 0%, var(--surface) 100%)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                Treasury
+              </span>
               <div
                 style={{
-                  fontSize: '32px',
-                  lineHeight: '40px',
-                  fontWeight: 600,
+                  fontSize: '40px',
+                  lineHeight: '44px',
+                  fontWeight: 800,
                   color: 'var(--text)',
                   fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.02em',
                 }}
               >
                 {formatMoney(displayCash)}
               </div>
-
               <div
                 style={{
-                  fontSize: '16px',
-                  lineHeight: '24px',
-                  fontWeight: 500,
-                  color: netIncome >= 0 ? 'var(--positive)' : 'var(--negative)',
+                  fontSize: '15px',
+                  lineHeight: '20px',
+                  fontWeight: 600,
+                  color: netIncome >= 0 ? 'var(--money)' : 'var(--danger)',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {formatRate(netIncome)}
               </div>
+            </div>
 
+            {/* Goal Card */}
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: '16px',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--brand-claude) 22%, var(--surface)) 0%, var(--surface) 100%)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
               <div
                 style={{
-                  fontSize: '13px',
-                  lineHeight: '18px',
-                  color: 'var(--text-secondary)',
-                  marginTop: '4px',
+                  width: 40,
+                  height: 40,
+                  borderRadius: '12px',
+                  backgroundColor: 'var(--gold-tint)',
+                  color: 'var(--gold)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
-                {getNextGoal(gameState)}
+                <Sparkles size={20} strokeWidth={1.75} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  Current Objective
+                </span>
+                <span
+                  style={{
+                    fontSize: '15px',
+                    lineHeight: '20px',
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    marginTop: '2px',
+                  }}
+                >
+                  {getNextGoal(gameState)}
+                </span>
               </div>
             </div>
 
-            {/* 4. Active Training Job or Ready to Launch */}
+            {/* Active Training Job or Ready to Launch */}
             {gameState.currentTraining ? (
               <div
                 style={{
                   padding: '16px',
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-card)',
+                  borderRadius: '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-                    {gameState.currentTraining.proposedName}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--brand-claude)',
+                      }}
+                    />
+                    <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+                      {gameState.currentTraining.proposedName}
+                    </span>
+                  </div>
                   <span
                     style={{
                       fontSize: '13px',
@@ -601,29 +680,32 @@ export const App: React.FC = () => {
                   padding: '16px',
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-card)',
+                  borderRadius: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
               >
-                <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-                  {gameState.readyModel.name}
-                </span>
-                <span
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+                    {gameState.readyModel.name}
+                  </span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    Training complete · Ready to deploy
+                  </span>
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={handleLaunch}
+                  style={{ minHeight: '44px', padding: '0 16px' }}
                 >
-                  Score {gameState.readyModel.score}
-                </span>
+                  <ArrowUpRight size={16} strokeWidth={1.75} />
+                  <span>Launch (Score {gameState.readyModel.score})</span>
+                </Button>
               </div>
             ) : null}
 
-            {/* 5. Four stat rows, not a cramped grid: GPUs, People, Data, Best score. Label left, value right. */}
+            {/* Lab stats: Money, GPUs, Power, Researchers, Data Quality, Era */}
             <div
               style={{
                 display: 'flex',
@@ -632,24 +714,40 @@ export const App: React.FC = () => {
               }}
             >
               <GameRow
+                icon={DollarSign}
+                iconColor="var(--money)"
+                title="Money"
+                value={formatMoney(displayCash)}
+              />
+              <GameRow
                 icon={Cpu}
+                iconColor="var(--compute)"
                 title="GPUs"
                 value={`${usableGpus}/${gameState.gpus}`}
               />
               <GameRow
+                icon={Zap}
+                iconColor="var(--compute)"
+                title="Power"
+                value={`${effectivePowerCap} kW`}
+              />
+              <GameRow
                 icon={Users}
-                title="People"
+                iconColor="var(--people)"
+                title="Researchers"
                 value={gameState.researchers}
               />
               <GameRow
                 icon={Database}
-                title="Data"
-                value={gameState.dataQuality}
+                iconColor="var(--research)"
+                title="Data Quality"
+                value={`${gameState.dataQuality}/100`}
               />
               <GameRow
-                icon={Award}
-                title="Best score"
-                value={gameState.bestLaunchedModel?.score ?? '—'}
+                icon={Sparkles}
+                iconColor="var(--gold)"
+                title="Era"
+                value={`Era ${gameState.era ?? 1}`}
               />
             </div>
           </div>
@@ -795,8 +893,8 @@ export const App: React.FC = () => {
         onClose={() => setOfflineReport(null)}
       />
 
-      {/* Sticky bar just above the bottom nav for Lab tab */}
-      {activeTab === 'lab' && (
+      {/* Sticky bar just above the bottom nav for Lab tab (hidden while training is active to avoid duplicate progress) */}
+      {activeTab === 'lab' && !gameState.currentTraining && (
         <div
           style={{
             position: 'fixed',
@@ -824,23 +922,6 @@ export const App: React.FC = () => {
               <ArrowUpRight size={16} strokeWidth={1.75} />
               <span>Launch</span>
             </Button>
-          ) : gameState.currentTraining ? (
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text)' }}>
-                <span style={{ fontWeight: 600 }}>{gameState.currentTraining.proposedName}</span>
-                <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                  {Math.max(
-                    0,
-                    gameState.currentTraining.totalSeconds - gameState.currentTraining.progressSeconds
-                  ).toFixed(0)}s left
-                </span>
-              </div>
-              <ProgressBar
-                progress={
-                  gameState.currentTraining.progressSeconds / gameState.currentTraining.totalSeconds
-                }
-              />
-            </div>
           ) : (
             <Button
               variant="primary"
@@ -869,7 +950,7 @@ export const App: React.FC = () => {
             className="text-input"
             value={tempLabName}
             onChange={(e) => setTempLabName(e.target.value)}
-            placeholder="Little Lamp Lab"
+            placeholder="Claude"
             maxLength={32}
             autoFocus
           />

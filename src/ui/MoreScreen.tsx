@@ -60,36 +60,42 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
       >
         <GameRow
           icon={FlaskConical}
+          iconColor="var(--research)"
           title="Research"
           showChevron
           onClick={onNavigateToResearch}
         />
         <GameRow
           icon={Users}
+          iconColor="var(--people)"
           title="Team"
           showChevron
           onClick={onNavigateToTeam}
         />
         <GameRow
           icon={Bell}
+          iconColor="var(--hype)"
           title="Events"
           showChevron
           onClick={onNavigateToEvents}
         />
         <GameRow
           icon={Award}
+          iconColor="var(--gold)"
           title="Achievements"
           showChevron
           onClick={onNavigateToAchievements}
         />
         <GameRow
           icon={History}
+          iconColor="var(--gold)"
           title="New Era"
           showChevron
           onClick={onNavigateToNewEra}
         />
         <GameRow
           icon={Settings}
+          iconColor="var(--compute)"
           title="Settings"
           showChevron
           onClick={onNavigateToSettings}
@@ -106,26 +112,31 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
       >
         <GameRow
           icon={Cpu}
+          iconColor="var(--compute)"
           title="GPUs"
           value={`${usableGpus}/${gameState.gpus}`}
         />
         <GameRow
           icon={Users}
+          iconColor="var(--people)"
           title="People"
           value={gameState.researchers}
         />
         <GameRow
           icon={Database}
+          iconColor="var(--research)"
           title="Data"
           value={gameState.dataQuality}
         />
         <GameRow
           icon={Star}
+          iconColor="var(--gold)"
           title="Score"
           value={gameState.bestLaunchedModel?.score ?? '—'}
         />
         <GameRow
           icon={Globe}
+          iconColor="var(--gold)"
           title="Era"
           value={gameState.era}
         />

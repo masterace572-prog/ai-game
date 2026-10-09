@@ -5,7 +5,7 @@ import {
   getPlayerAppeal,
   getRivalAppeal,
 } from '../game/logic';
-import { MODEL_SIZES } from '../game/balance';
+import { getRivalModelName } from '../game/balance';
 import { formatRate } from './format';
 import type { GameState } from '../game/types';
 
@@ -25,6 +25,7 @@ interface LeaderboardEntry {
 }
 
 export function getLabMonogram(name: string): string {
+  if (name.toLowerCase() === 'claude') return 'CL';
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -32,7 +33,7 @@ export function getLabMonogram(name: string): string {
   if (parts.length === 1 && parts[0].length >= 2) {
     return parts[0].slice(0, 2).toUpperCase();
   }
-  return 'LB';
+  return 'CL';
 }
 
 export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
@@ -43,9 +44,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
 
   // Player entry
   const playerShare = market.totalAppeal > 0 ? (playerAppeal / market.totalAppeal) * 100 : 0;
+  const playerModel = gameState.bestLaunchedModel?.name ?? 'No models launched';
   const playerStatus = gameState.currentTraining
-    ? `Training ${MODEL_SIZES[gameState.currentTraining.sizeId]?.name ?? 'Model'}`
-    : undefined;
+    ? `${playerModel} · Training...`
+    : playerModel;
 
   entries.push({
     id: 'player',
@@ -62,9 +64,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
   for (const rival of gameState.rivals ?? []) {
     const appeal = getRivalAppeal(rival);
     const share = market.totalAppeal > 0 ? (appeal / market.totalAppeal) * 100 : 0;
+    const rivalModel = getRivalModelName(rival.id, rival.bestScore);
     const rivalStatus = rival.trainingJob
-      ? `Training ${MODEL_SIZES[rival.trainingJob.sizeId]?.name ?? 'Model'}`
-      : undefined;
+      ? `${rivalModel} · Training...`
+      : rivalModel;
 
     entries.push({
       id: rival.id,
@@ -213,7 +216,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
                   <span
                     style={{
                       fontSize: '16px',
-                      fontWeight: 500,
+                      fontWeight: 600,
                       color: 'var(--text)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -241,7 +244,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ gameState }) => {
                 {entry.statusLine && (
                   <span
                     style={{
-                      fontSize: '12px',
+                      fontSize: '13px',
                       color: 'var(--text-secondary)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',

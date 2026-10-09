@@ -148,6 +148,7 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
       >
         <GameRow
           icon={Sparkles}
+          iconColor="var(--gold)"
           title="Details"
           value={`Era ${era} · ${currentPoints} pts`}
           showChevron

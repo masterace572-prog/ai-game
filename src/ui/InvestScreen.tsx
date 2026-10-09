@@ -104,28 +104,51 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
             } else if (!check.canTake) {
               btnDisabled = true;
               btnVariant = 'secondary';
-              btnText = check.reason ?? 'Locked';
+              btnText = def.requiredBestScore > 0 ? `Need ${def.requiredBestScore}` : 'Locked';
             }
+
+            const equityOrCost = Math.round((def.salaryMultiplier - 1) * 100);
+            const reqSubtitle =
+              def.requiredBestScore > 0
+                ? `Requires Score ${def.requiredBestScore} · +${equityOrCost}% salary`
+                : `No requirement · +${equityOrCost}% salary`;
 
             return (
               <GameRow
                 key={roundId}
                 icon={DollarSign}
-                title={def.name}
-                value={`+${formatCost(def.cashAmount)}`}
+                iconColor="var(--money)"
+                titleWrap
+                title={`${def.name} (+${formatCost(def.cashAmount)})`}
+                subtitle={reqSubtitle}
                 onClick={() => setSelectedFunding(roundId)}
                 button={
-                  <Button
-                    variant={btnVariant}
-                    disabled={btnDisabled}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!btnDisabled) onTakeFunding(roundId);
+                  <div
+                    style={{
+                      width: '104px',
+                      maxWidth: '112px',
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      flexShrink: 0,
                     }}
-                    style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
                   >
-                    <span>{btnText}</span>
-                  </Button>
+                    <Button
+                      variant={btnVariant}
+                      disabled={btnDisabled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!btnDisabled) onTakeFunding(roundId);
+                      }}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0 8px',
+                        fontSize: '13px',
+                      }}
+                    >
+                      <span>{btnText}</span>
+                    </Button>
+                  </div>
                 }
               />
             );
@@ -145,6 +168,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
           {nextDataCenter ? (
             <GameRow
               icon={Server}
+              iconColor="var(--compute)"
               title={nextDataCenter.name}
               value={`${dataCentersOwned}/4`}
               onClick={() => setBuildingSheetOpen(true)}
@@ -169,6 +193,7 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
           ) : (
             <GameRow
               icon={Server}
+              iconColor="var(--compute)"
               title="All buildings owned"
               value="4/4"
               button={

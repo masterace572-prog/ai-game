@@ -1,7 +1,5 @@
 import {
   MODEL_SIZES,
-  NAME_ADJECTIVES,
-  NAME_NOUNS,
   BASE_DEMAND,
   DEMAND_GROWTH_PER_ERA,
   SUBSCRIPTION_SHARE,
@@ -42,6 +40,7 @@ import {
   STARTING_DATA_QUALITY,
   STARTING_REPUTATION,
   RIVALS_ERA_1,
+  CLAUDE_LADDER,
   getGpuPrice,
   getResearcherPrice,
   getDataUpgradePrice,
@@ -192,32 +191,23 @@ export function getExpectedScoreRange(
 }
 
 /**
- * Pick adjective + noun from design lists. Do not repeat a name used this era.
- * If exhausted, append a number suffix ("Quiet Lantern 2").
+ * Pick model name from CLAUDE_LADDER. Do not repeat a name used this era.
+ * If exhausted, append a number suffix ("Claude Omega 2").
  */
-export function generateModelName(usedNames: string[]): string {
+export function generateModelName(usedNames: string[] = []): string {
   const usedSet = new Set(usedNames);
-  const allCombos: string[] = [];
 
-  for (const adj of NAME_ADJECTIVES) {
-    for (const noun of NAME_NOUNS) {
-      allCombos.push(`${adj} ${noun}`);
+  for (const name of CLAUDE_LADDER) {
+    if (!usedSet.has(name)) {
+      return name;
     }
-  }
-
-  const unused = allCombos.filter((name) => !usedSet.has(name));
-  if (unused.length > 0) {
-    const pick = unused[Math.floor(Math.random() * unused.length)];
-    return pick;
   }
 
   let suffix = 2;
   while (true) {
-    const candidates = allCombos
-      .map((c) => `${c} ${suffix}`)
-      .filter((name) => !usedSet.has(name));
-    if (candidates.length > 0) {
-      return candidates[Math.floor(Math.random() * candidates.length)];
+    const candidate = `Claude Omega ${suffix}`;
+    if (!usedSet.has(candidate)) {
+      return candidate;
     }
     suffix++;
   }
@@ -1576,10 +1566,10 @@ export function createRivalsForEra(era: number = 1): RivalState[] {
   const rivals: RivalState[] = RIVALS_ERA_1.map((def) => {
     const bestScore = Math.round(def.startingBestScore * scale);
     const shortCodeMap: Record<string, string> = {
-      helix: 'HA',
-      pebble: 'PM',
-      northglass: 'NG',
-      vesper: 'VW',
+      helix: 'GP',
+      pebble: 'DS',
+      northglass: 'GE',
+      vesper: 'GR',
     };
     const preferredMap: Record<string, ModelSizeId[]> = {
       helix: ['medium', 'large'],
@@ -1615,9 +1605,9 @@ export function createRivalsForEra(era: number = 1): RivalState[] {
     rivals.push(
       {
         id: 'copperline',
-        name: 'Copperline',
-        shortCode: 'CL',
-        style: 'Enterprise compute',
+        name: 'Llama',
+        shortCode: 'LL',
+        style: 'Open weights powerhouse',
         bestScore: 30 * safeEra,
         freshness: 1.0,
         stockPrice: 100,
@@ -1630,9 +1620,9 @@ export function createRivalsForEra(era: number = 1): RivalState[] {
       },
       {
         id: 'bracket',
-        name: 'Bracket Research',
-        shortCode: 'BR',
-        style: 'Pure architecture',
+        name: 'Mistral',
+        shortCode: 'MI',
+        style: 'Efficient open models',
         bestScore: 36 * safeEra,
         freshness: 1.0,
         stockPrice: 110,
