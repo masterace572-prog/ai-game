@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Button } from './Button';
-import { Surface } from './Surface';
+import { GameRow } from './GameRow';
+import { Modal } from './Modal';
 import type { GameState } from '../game/types';
 
 export interface SettingsScreenProps {
@@ -31,11 +32,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onWipeSave,
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
-  const [importText, setImportText] = useState('');
+  const [copied, setCopied] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
-  const [wipeConfirm, setWipeConfirm] = useState('');
   const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipeConfirm, setWipeConfirm] = useState('');
 
   const soundOn = gameState.soundEnabled ?? true;
   const reduceMotion = gameState.reduceMotion ?? false;
@@ -44,30 +46,46 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const json = JSON.stringify(gameState, null, 2);
     if (navigator.clipboard) {
       navigator.clipboard.writeText(json).catch(() => {});
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
   const handleDoImport = () => {
     setImportError(null);
     if (!importText.trim()) {
-      setImportError('Please paste save JSON first.');
+      setImportError('Paste save JSON first');
       return;
     }
     const success = onImportSave(importText.trim());
-    if (!success) {
-      setImportError('Invalid save data or incompatible version.');
+    if (success) {
+      setImportOpen(false);
+      setImportText('');
+    } else {
+      setImportError('Invalid save JSON');
     }
   };
 
   const handleDoWipe = () => {
     if (wipeConfirm.trim() === 'RESET') {
       onWipeSave();
+      setWipeOpen(false);
+      setWipeConfirm('');
     }
   };
 
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Back button */}
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
       <button
         type="button"
         onClick={onBackToMore}
@@ -82,7 +100,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           cursor: 'pointer',
-          padding: 'var(--space-2) 0',
+          padding: '8px 0',
           minHeight: '48px',
         }}
       >
@@ -90,264 +108,247 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <span>Back to More</span>
       </button>
 
-      {/* Screen Title */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          Settings
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Audio controls, accessibility preferences, and local save storage.
-        </p>
+      <h1 className="screen-title">Settings</h1>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        {/* Sound */}
+        <GameRow
+          icon={soundOn ? Volume2 : VolumeX}
+          title="Sound"
+          value={soundOn ? 'On' : 'Off'}
+          button={
+            <Button
+              variant="secondary"
+              onClick={onToggleSound}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Toggle</span>
+            </Button>
+          }
+        />
+
+        {/* Motion */}
+        <GameRow
+          icon={Zap}
+          title="Motion"
+          value={reduceMotion ? 'Reduced' : 'Full'}
+          button={
+            <Button
+              variant="secondary"
+              onClick={onToggleReduceMotion}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Toggle</span>
+            </Button>
+          }
+        />
+
+        {/* Export */}
+        <GameRow
+          icon={Download}
+          title="Export"
+          button={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setCopied(false);
+                setExportOpen(true);
+              }}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Export</span>
+            </Button>
+          }
+        />
+
+        {/* Import */}
+        <GameRow
+          icon={Upload}
+          title="Import"
+          button={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setImportError(null);
+                setImportText('');
+                setImportOpen(true);
+              }}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Import</span>
+            </Button>
+          }
+        />
+
+        {/* Wipe */}
+        <GameRow
+          icon={Trash2}
+          iconColor="var(--negative)"
+          title="Wipe"
+          button={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setWipeConfirm('');
+                setWipeOpen(true);
+              }}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Wipe</span>
+            </Button>
+          }
+        />
       </div>
 
-      {/* Preferences Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-          Preferences
-        </h2>
-
-        {/* Sound Toggle */}
-        <Surface
-          style={{
-            padding: 'var(--space-3) var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <Icon icon={soundOn ? Volume2 : VolumeX} size={20} color="var(--primary)" aria-hidden="true" />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                Sound Effects
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Web Audio procedural tones for taps, launches, and events
-              </div>
-            </div>
-          </div>
-
-          <Button
-            variant={soundOn ? 'primary' : 'secondary'}
-            onClick={onToggleSound}
-            style={{ minHeight: '48px', padding: '0 var(--space-4)', fontSize: '13px' }}
-          >
-            <span>{soundOn ? 'On' : 'Muted'}</span>
-          </Button>
-        </Surface>
-
-        {/* Reduce Motion Toggle */}
-        <Surface
-          style={{
-            padding: 'var(--space-3) var(--space-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <Icon icon={Zap} size={20} color="var(--primary)" aria-hidden="true" />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                Reduce Motion
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Disable animations and transitions for accessible UI
-              </div>
-            </div>
-          </div>
-
-          <Button
-            variant={reduceMotion ? 'primary' : 'secondary'}
-            onClick={onToggleReduceMotion}
-            style={{ minHeight: '48px', padding: '0 var(--space-4)', fontSize: '13px' }}
-          >
-            <span>{reduceMotion ? 'Reduced' : 'Normal'}</span>
-          </Button>
-        </Surface>
-      </section>
-
-      {/* Save Management Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-          Data & Save Storage
-        </h2>
-
-        {/* Export Save */}
-        <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <Icon icon={Download} size={20} color="var(--text-secondary)" aria-hidden="true" />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  Export Save
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Inspect or copy raw JSON game state
-                </div>
-              </div>
-            </div>
-
+      {/* Export Sheet */}
+      <Modal isOpen={exportOpen}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+            Export Save Data
+          </h2>
+          <textarea
+            readOnly
+            value={JSON.stringify(gameState, null, 2)}
+            rows={8}
+            style={{
+              width: '100%',
+              backgroundColor: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-control)',
+              color: 'var(--text)',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              padding: '8px',
+              resize: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="primary"
+              onClick={handleCopyExport}
+              style={{ flex: 1, minHeight: '48px' }}
+            >
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </Button>
             <Button
               variant="secondary"
-              onClick={() => setExportOpen(!exportOpen)}
-              style={{ minHeight: '48px', padding: '0 var(--space-3)', fontSize: '13px' }}
+              onClick={() => setExportOpen(false)}
+              style={{ flex: 1, minHeight: '48px' }}
             >
-              <span>{exportOpen ? 'Hide' : 'Export'}</span>
+              <span>Close</span>
             </Button>
           </div>
+        </div>
+      </Modal>
 
-          {exportOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <textarea
-                readOnly
-                value={JSON.stringify(gameState, null, 2)}
-                style={{
-                  width: '100%',
-                  height: '140px',
-                  backgroundColor: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  padding: 'var(--space-2)',
-                  borderRadius: 'var(--radius-control)',
-                  resize: 'none',
-                }}
-              />
-              <Button
-                variant="primary"
-                onClick={handleCopyExport}
-                style={{ minHeight: '48px', width: '100%', fontSize: '13px' }}
-              >
-                <span>Copy JSON to Clipboard</span>
-              </Button>
+      {/* Import Sheet */}
+      <Modal isOpen={importOpen}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+            Import Save Data
+          </h2>
+          <textarea
+            placeholder="Paste save JSON here"
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={8}
+            style={{
+              width: '100%',
+              backgroundColor: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-control)',
+              color: 'var(--text)',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              padding: '8px',
+              resize: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          {importError && (
+            <div style={{ fontSize: '13px', color: 'var(--negative)' }}>
+              {importError}
             </div>
           )}
-        </Surface>
-
-        {/* Import Save */}
-        <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <Icon icon={Upload} size={20} color="var(--text-secondary)" aria-hidden="true" />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  Import Save
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Restore game state from pasted JSON
-                </div>
-              </div>
-            </div>
-
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="primary"
+              onClick={handleDoImport}
+              style={{ flex: 1, minHeight: '48px' }}
+            >
+              <span>Import</span>
+            </Button>
             <Button
               variant="secondary"
-              onClick={() => setImportOpen(!importOpen)}
-              style={{ minHeight: '48px', padding: '0 var(--space-3)', fontSize: '13px' }}
+              onClick={() => setImportOpen(false)}
+              style={{ flex: 1, minHeight: '48px' }}
             >
-              <span>{importOpen ? 'Hide' : 'Import'}</span>
+              <span>Close</span>
             </Button>
           </div>
+        </div>
+      </Modal>
 
-          {importOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <textarea
-                placeholder="Paste save JSON here..."
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '100px',
-                  backgroundColor: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  padding: 'var(--space-2)',
-                  borderRadius: 'var(--radius-control)',
-                  resize: 'none',
-                }}
-              />
-              {importError && (
-                <span style={{ fontSize: '12px', color: 'var(--danger)' }}>{importError}</span>
-              )}
-              <Button
-                variant="primary"
-                onClick={handleDoImport}
-                style={{ minHeight: '48px', width: '100%', fontSize: '13px' }}
-              >
-                <span>Confirm Import & Replace Save</span>
-              </Button>
-            </div>
-          )}
-        </Surface>
-
-        {/* Wipe Save */}
-        <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <Icon icon={Trash2} size={20} color="var(--danger)" aria-hidden="true" />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  Wipe Game Data
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Reset laboratory to blank initial state
-                </div>
-              </div>
-            </div>
-
+      {/* Wipe Sheet */}
+      <Modal isOpen={wipeOpen}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+            Wipe Save
+          </h2>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Type <strong style={{ color: 'var(--text)' }}>RESET</strong> to delete all local progress.
+          </p>
+          <input
+            type="text"
+            placeholder="Type RESET"
+            value={wipeConfirm}
+            onChange={(e) => setWipeConfirm(e.target.value)}
+            style={{
+              height: '48px',
+              backgroundColor: 'var(--bg)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-control)',
+              color: 'var(--text)',
+              fontSize: '14px',
+              padding: '0 12px',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="primary"
+              disabled={wipeConfirm.trim() !== 'RESET'}
+              onClick={handleDoWipe}
+              style={{ flex: 1, minHeight: '48px' }}
+            >
+              <span>Confirm Wipe</span>
+            </Button>
             <Button
               variant="secondary"
-              onClick={() => setWipeOpen(!wipeOpen)}
-              style={{ minHeight: '48px', padding: '0 var(--space-3)', fontSize: '13px' }}
+              onClick={() => setWipeOpen(false)}
+              style={{ flex: 1, minHeight: '48px' }}
             >
-              <span>{wipeOpen ? 'Cancel' : 'Wipe'}</span>
+              <span>Cancel</span>
             </Button>
           </div>
+        </div>
+      </Modal>
 
-          {wipeOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Type <strong style={{ color: 'var(--text)' }}>RESET</strong> below to confirm wiping all laboratory progress.
-              </p>
-              <input
-                type="text"
-                placeholder="Type RESET"
-                value={wipeConfirm}
-                onChange={(e) => setWipeConfirm(e.target.value)}
-                style={{
-                  height: '48px',
-                  backgroundColor: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  fontSize: '14px',
-                  padding: '0 var(--space-3)',
-                  borderRadius: 'var(--radius-control)',
-                }}
-              />
-              <Button
-                variant="primary"
-                onClick={handleDoWipe}
-                disabled={wipeConfirm.trim() !== 'RESET'}
-                style={{ minHeight: '48px', width: '100%', fontSize: '13px' }}
-              >
-                <span>Confirm Wipe</span>
-              </Button>
-            </div>
-          )}
-        </Surface>
-      </section>
-
-      {/* App Version & Offline Notice */}
+      {/* Footer */}
       <div
         style={{
           textAlign: 'center',
-          padding: 'var(--space-6) var(--space-4)',
+          padding: '24px 0',
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--space-1)',
+          gap: '4px',
         }}
       >
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -360,4 +361,5 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     </div>
   );
 };
+
 export default SettingsScreen;

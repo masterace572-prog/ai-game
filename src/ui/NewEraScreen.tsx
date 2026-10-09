@@ -2,14 +2,11 @@ import React, { useState } from 'react';
 import {
   ChevronLeft,
   Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  RotateCcw,
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Button } from './Button';
-import { Surface } from './Surface';
-import { formatShort } from './format';
+import { GameRow } from './GameRow';
+import { Modal } from './Modal';
 import {
   calculateEraPointsGained,
   canPrestigeNewEra,
@@ -28,6 +25,7 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
   onPrestige,
 }) => {
   const [isConfirming, setIsConfirming] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const bestScore = gameState.bestLaunchedModel?.score ?? 0;
   const cashEarned = gameState.lifetimeCashEarned ?? 0;
@@ -36,10 +34,6 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
 
   const isEligible = canPrestigeNewEra(gameState);
   const pointsGained = calculateEraPointsGained(bestScore, cashEarned);
-  const newTotalPoints = currentPoints + pointsGained;
-
-  const scoreFromPoints = Math.floor(bestScore / 80);
-  const cashFromPoints = Math.floor(cashEarned / 1000000);
 
   const handleButtonClick = () => {
     if (!isConfirming) {
@@ -50,8 +44,17 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
   };
 
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Back button */}
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
       <button
         type="button"
         onClick={onBackToMore}
@@ -66,7 +69,7 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           cursor: 'pointer',
-          padding: 'var(--space-2) 0',
+          padding: '8px 0',
           minHeight: '48px',
         }}
       >
@@ -74,232 +77,104 @@ export const NewEraScreen: React.FC<NewEraScreenProps> = ({
         <span>Back to More</span>
       </button>
 
-      {/* Screen Title */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          New Era (Prestige)
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Advance to the next technological frontier and secure permanent architecture bonuses.
-        </p>
-      </div>
+      <h1 className="screen-title">New Era</h1>
 
-      {/* Era Points Gained Card */}
-      <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      {/* Two summary lines */}
+      <div
+        style={{
+          padding: '16px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-card)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <Icon icon={Sparkles} size={20} color="var(--primary)" aria-hidden="true" />
-            <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-              Era Points Gained This Reset
-            </span>
-          </div>
-          <span
-            style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: 'var(--primary)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            +{pointsGained} pts
+          <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text)' }}>
+            Gain
+          </span>
+          <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
+            +{pointsGained} Era Points (+{pointsGained * 2}% score)
           </span>
         </div>
 
-        {/* Breakdown Calculation */}
-        <div
-          style={{
-            backgroundColor: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-control)',
-            padding: 'var(--space-3)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-2)',
-            fontSize: '12px',
-          }}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text)' }}>
+            Lose
+          </span>
+          <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+            Cash, GPUs, research, models
+          </span>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <Button
+          variant={isEligible ? 'primary' : 'secondary'}
+          disabled={!isEligible}
+          onClick={handleButtonClick}
+          style={{ width: '100%', minHeight: '48px' }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-            <span>From Best Score ({bestScore} ÷ 80):</span>
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text)', fontWeight: 600 }}>
-              +{scoreFromPoints} pts
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-            <span>From Cash Earned (${formatShort(cashEarned)} ÷ 1M):</span>
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text)', fontWeight: 600 }}>
-              +{cashFromPoints} pts
-            </span>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              borderTop: '1px solid var(--border)',
-              paddingTop: 'var(--space-2)',
-              fontWeight: 600,
-              color: 'var(--text)',
-            }}
-          >
-            <span>Next Total Points & Multiplier:</span>
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--primary)' }}>
-              {newTotalPoints} pts (×{(1 + newTotalPoints * 0.02).toFixed(2)} score bonus)
-            </span>
-          </div>
-        </div>
+          <span>
+            {!isEligible
+              ? 'Need score 250 or $1M'
+              : isConfirming
+              ? 'Tap to Confirm'
+              : 'Begin New Era'}
+          </span>
+        </Button>
 
-        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
-          Each Era Point permanently boosts all future model training scores by +2% (1 + eraPoints × 0.02).
-        </div>
-      </Surface>
-
-      {/* Qualification Criteria Card */}
-      <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-          Eligibility Requirements (Any One)
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <Icon
-                icon={bestScore >= 250 ? CheckCircle2 : AlertCircle}
-                size={16}
-                color={bestScore >= 250 ? 'var(--success)' : 'var(--text-tertiary)'}
-                aria-hidden="true"
-              />
-              <span style={{ fontSize: '13px', color: 'var(--text)' }}>
-                Best Launched Score ≥ 250
-              </span>
-            </div>
-            <span style={{ fontSize: '13px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: bestScore >= 250 ? 'var(--success)' : 'var(--text-secondary)' }}>
-              {bestScore} / 250
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <Icon
-                icon={cashEarned >= 2000000 ? CheckCircle2 : AlertCircle}
-                size={16}
-                color={cashEarned >= 2000000 ? 'var(--success)' : 'var(--text-tertiary)'}
-                aria-hidden="true"
-              />
-              <span style={{ fontSize: '13px', color: 'var(--text)' }}>
-                Lifetime Cash Earned ≥ $2,000,000
-              </span>
-            </div>
-            <span style={{ fontSize: '13px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: cashEarned >= 2000000 ? 'var(--success)' : 'var(--text-secondary)' }}>
-              ${formatShort(cashEarned)} / $2.0M
-            </span>
-          </div>
-        </div>
-
-        {!isEligible && (
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: 'var(--surface-2)',
-              borderRadius: 'var(--radius-control)',
-              border: '1px solid var(--border)',
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            New Era button unlocks once your lab reaches score 250 or earns $2M this era.
-          </div>
-        )}
-      </Surface>
-
-      {/* What is Kept vs What is Reset Card */}
-      <Surface style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-          Era Transition Summary
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
-          {/* Kept */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--success)', fontWeight: 600 }}>
-              Kept Forever
-            </span>
-            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <li>Era number ({era} → {era + 1})</li>
-              <li>Era points ({newTotalPoints} total)</li>
-              <li>All achievements & bonuses</li>
-              <li>All-time best score</li>
-              <li>Lab name & settings</li>
-              <li>Lifetime prestige count</li>
-            </ul>
-          </div>
-
-          {/* Reset */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--danger)', fontWeight: 600 }}>
-              Reset to Start
-            </span>
-            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <li>Cash ($25,000 start)</li>
-              <li>GPUs (2) & Power Cap (4)</li>
-              <li>Researchers (1) & Data (20)</li>
-              <li>Reputation (0)</li>
-              <li>Models & training runs</li>
-              <li>Research nodes & tech equity</li>
-              <li>Data centers & cooling</li>
-              <li>Rivals re-seeded higher</li>
-            </ul>
-          </div>
-        </div>
-
-        {era === 1 && (
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
-            Era 2 introduces rival labs Copperline and Bracket Research to the market.
-          </div>
-        )}
-      </Surface>
-
-      {/* Confirmation & Action Button (ONLY RENDERED IF ELIGIBLE) */}
-      {isEligible && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-          {isConfirming && (
-            <div
-              style={{
-                padding: 'var(--space-3)',
-                backgroundColor: 'var(--surface-2)',
-                borderRadius: 'var(--radius-control)',
-                border: '1px solid var(--warning)',
-                fontSize: '12px',
-                color: 'var(--text)',
-                textAlign: 'center',
-              }}
-            >
-              Are you sure? Current cash, chips, and models will reset. Tap again to confirm.
-            </div>
-          )}
-
+        {isConfirming && (
           <Button
-            variant="primary"
-            onClick={handleButtonClick}
-            style={{ minHeight: '48px', width: '100%', fontSize: '14px' }}
+            variant="secondary"
+            onClick={() => setIsConfirming(false)}
+            style={{ width: '100%', minHeight: '48px' }}
           >
-            <Icon icon={RotateCcw} size={16} aria-hidden="true" />
-            <span>
-              {isConfirming
-                ? `Confirm New Era (Advance to Era ${era + 1})`
-                : `Begin New Era (Era ${era} → ${era + 1})`}
-            </span>
+            <span>Cancel</span>
           </Button>
+        )}
+      </div>
 
-          {isConfirming && (
-            <Button
-              variant="secondary"
-              onClick={() => setIsConfirming(false)}
-              style={{ minHeight: '48px', width: '100%', fontSize: '14px' }}
-            >
-              <span>Cancel</span>
-            </Button>
-          )}
+      {/* Details Row */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <GameRow
+          icon={Sparkles}
+          title="Details"
+          value={`Era ${era} · ${currentPoints} pts`}
+          showChevron
+          onClick={() => setDetailsOpen(true)}
+        />
+      </div>
+
+      {/* Details Sheet */}
+      <Modal isOpen={detailsOpen}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+            New Era Details
+          </h2>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div>Current: Era {era} with {currentPoints} Era Points (+{currentPoints * 2}% permanent score bonus).</div>
+            <div>Carryover: Achievements, sound/motion settings, and lifetime statistics are preserved.</div>
+            <div>Rivals: Reset with refreshed starting baselines and two additional labs in Era 2+.</div>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => setDetailsOpen(false)}
+            style={{ width: '100%', minHeight: '48px' }}
+          >
+            <span>Close</span>
+          </Button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

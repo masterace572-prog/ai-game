@@ -1,32 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ChevronLeft,
   FlaskConical,
   Check,
   Lock,
-  ChevronLeft,
-  Database,
-  Zap,
-  Cpu,
-  Users,
-  Megaphone,
-  Layers,
-  Sparkles,
-  Bot,
-  type LucideIcon,
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Button } from './Button';
-import { Surface } from './Surface';
+import { GameRow } from './GameRow';
 import { formatCost } from './format';
 import {
   RESEARCH_NODES,
   RESEARCH_NODE_ORDER,
 } from '../game/balance';
-import {
-  canBuyResearchNode,
-  getResearchScoreMultiplier,
-  getTotalScoreMultiplier,
-} from '../game/logic';
+import { canBuyResearchNode } from '../game/logic';
 import type { GameState, ResearchNodeId } from '../game/types';
 
 export interface ResearchScreenProps {
@@ -35,28 +22,51 @@ export interface ResearchScreenProps {
   onBuyResearch: (nodeId: ResearchNodeId) => void;
 }
 
-const NODE_ICONS: Record<ResearchNodeId, LucideIcon> = {
-  'clean-data': Database,
-  'optimizers': Zap,
-  'cheap-flops': Cpu,
-  'recruiter': Users,
-  'brand': Megaphone,
-  'mixture': Layers,
-  'reasoning': Sparkles,
-  'agent-harness': Bot,
-};
-
 export const ResearchScreen: React.FC<ResearchScreenProps> = ({
   gameState,
   onBackToMore,
   onBuyResearch,
 }) => {
-  const researchMult = getResearchScoreMultiplier(gameState);
-  const totalMult = getTotalScoreMultiplier(gameState);
+  const [showLocked, setShowLocked] = useState(false);
+
+  const availableNodes: ResearchNodeId[] = [];
+  const ownedNodes: ResearchNodeId[] = [];
+  const lockedNodes: ResearchNodeId[] = [];
+
+  for (const nodeId of RESEARCH_NODE_ORDER) {
+    if (gameState.researchOwned?.[nodeId]) {
+      ownedNodes.push(nodeId);
+    } else {
+      const check = canBuyResearchNode(nodeId, gameState);
+      if (check.canBuy) {
+        availableNodes.push(nodeId);
+      } else {
+        lockedNodes.push(nodeId);
+      }
+    }
+  }
+
+  const getShortLockedReason = (nodeId: ResearchNodeId): string => {
+    const def = RESEARCH_NODES[nodeId];
+    if (def.requiresNodeId) {
+      const parentName = RESEARCH_NODES[def.requiresNodeId]?.name ?? def.requiresNodeId;
+      return `need ${parentName}`;
+    }
+    return 'locked';
+  };
 
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Back button */}
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
       <button
         type="button"
         onClick={onBackToMore}
@@ -71,7 +81,7 @@ export const ResearchScreen: React.FC<ResearchScreenProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           cursor: 'pointer',
-          padding: 'var(--space-2) 0',
+          padding: '8px 0',
           minHeight: '48px',
         }}
       >
@@ -79,139 +89,95 @@ export const ResearchScreen: React.FC<ResearchScreenProps> = ({
         <span>Back to More</span>
       </button>
 
-      {/* Screen Header */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          Research & Development
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Pioneer architectural breakthroughs, talent pipelines, and foundational model techniques.
-        </p>
-      </div>
+      <h1 className="screen-title">Research</h1>
 
-      {/* Multiplier Summary Card */}
-      <Surface
+      <div
         style={{
-          padding: 'var(--space-4)',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 'var(--space-3)',
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Research Score Bonus
-          </span>
-          <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--primary)' }}>
-            {researchMult.toFixed(2)}x
-          </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            From active research nodes
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Total Architecture
-          </span>
-          <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
-            {totalMult.toFixed(2)}x
-          </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Research × Data centers
-          </span>
-        </div>
-      </Surface>
-
-      {/* Research Nodes Vertical Cards List */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        {RESEARCH_NODE_ORDER.map((nodeId) => {
+        {/* Available Nodes */}
+        {availableNodes.map((nodeId) => {
           const def = RESEARCH_NODES[nodeId];
-          const isOwned = Boolean(gameState.researchOwned?.[nodeId]);
-          const check = canBuyResearchNode(nodeId, gameState);
-          const NodeIcon = NODE_ICONS[nodeId] || FlaskConical;
+          const canAfford = gameState.cash >= def.cost;
 
           return (
-            <Surface
+            <GameRow
               key={nodeId}
-              style={{
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-                opacity: !isOwned && !check.canBuy && check.reason?.startsWith('Requires') ? 0.65 : 1.0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: isOwned ? 'var(--surface)' : 'var(--surface-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    border: isOwned ? '1px solid var(--border)' : 'none',
-                  }}
+              icon={FlaskConical}
+              title={def.name}
+              button={
+                <Button
+                  variant={canAfford ? 'primary' : 'secondary'}
+                  disabled={!canAfford}
+                  onClick={() => onBuyResearch(nodeId)}
+                  style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
                 >
-                  <Icon
-                    icon={isOwned ? Check : !check.canBuy && check.reason?.startsWith('Requires') ? Lock : NodeIcon}
-                    size={20}
-                    color={isOwned ? 'var(--success)' : 'var(--primary)'}
-                    aria-hidden="true"
-                  />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                      {def.name}
-                    </span>
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        fontSize: '13px',
-                        fontVariantNumeric: 'tabular-nums',
-                        color: isOwned ? 'var(--text-tertiary)' : 'var(--text)',
-                      }}
-                    >
-                      {isOwned ? 'Researched' : formatCost(def.cost)}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    {def.effect}
-                  </div>
-
-                  {def.requiresNodeId && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                      Prerequisite: {RESEARCH_NODES[def.requiresNodeId]?.name}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <Button
-                variant={isOwned ? 'secondary' : 'primary'}
-                onClick={() => onBuyResearch(nodeId)}
-                disabled={isOwned || !check.canBuy}
-                style={{ minHeight: '48px', width: '100%' }}
-              >
-                <span>
-                  {isOwned
-                    ? 'Researched'
-                    : !check.canBuy
-                    ? (check.reason ?? 'Locked')
-                    : `Research ${def.name} — ${formatCost(def.cost)}`}
-                </span>
-              </Button>
-            </Surface>
+                  <span>{canAfford ? `Buy ${formatCost(def.cost)}` : `Need ${formatCost(def.cost - gameState.cash)}`}</span>
+                </Button>
+              }
+            />
           );
         })}
-      </section>
+
+        {/* Owned Nodes */}
+        {ownedNodes.map((nodeId) => {
+          const def = RESEARCH_NODES[nodeId];
+          return (
+            <GameRow
+              key={nodeId}
+              icon={Check}
+              iconColor="var(--positive)"
+              title={def.name}
+              value="Owned"
+              valueColor="var(--text-secondary)"
+            />
+          );
+        })}
+
+        {/* Locked Nodes (single expandable row) */}
+        {lockedNodes.length > 0 && (
+          <>
+            <GameRow
+              icon={Lock}
+              title={`Locked (${lockedNodes.length})`}
+              showChevron
+              onClick={() => setShowLocked(!showLocked)}
+            />
+            {showLocked && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {lockedNodes.map((nodeId) => {
+                  const def = RESEARCH_NODES[nodeId];
+                  return (
+                    <div
+                      key={nodeId}
+                      style={{
+                        minHeight: '44px',
+                        padding: '10px 16px 10px 48px',
+                        borderBottom: '1px solid var(--border)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>
+                        {def.name}
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {getShortLockedReason(nodeId)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
+
 export default ResearchScreen;

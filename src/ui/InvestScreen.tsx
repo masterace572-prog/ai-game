@@ -1,21 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Server,
   DollarSign,
-  Lock,
-  Check,
+  Server,
+  Plus,
+  Minus,
 } from 'lucide-react';
-import { Icon } from './Icon';
 import { Button } from './Button';
-import { Surface } from './Surface';
+import { GameRow } from './GameRow';
+import { Segmented } from './Segmented';
 import { Monogram } from './Monogram';
-import { formatCost, formatMoney, formatSellPrice } from './format';
+import { Modal } from './Modal';
+import { formatCost, formatSellPrice } from './format';
 import {
   DATA_CENTERS,
   DATA_CENTER_UPKEEP_PER_SEC,
   FUNDING_ROUNDS,
   STOCK_MAX_SHARES,
-  STOCK_SELL_FEE,
 } from '../game/balance';
 import {
   getStockSellProceeds,
@@ -31,6 +31,9 @@ export interface InvestScreenProps {
   onSellStock: (rivalId: string, sharesCount: number) => void;
 }
 
+type InvestTab = 'funding' | 'buildings' | 'stocks';
+type StockQty = '1' | '10' | 'max';
+
 export const InvestScreen: React.FC<InvestScreenProps> = ({
   gameState,
   onBuyDataCenter,
@@ -38,329 +41,323 @@ export const InvestScreen: React.FC<InvestScreenProps> = ({
   onBuyStock,
   onSellStock,
 }) => {
-  const dataCentersOwned = gameState.dataCentersOwned ?? 0;
-  const bestScore = gameState.bestLaunchedModel?.score ?? 0;
+  const [activeTab, setActiveTab] = useState<InvestTab>('funding');
+  const [stockQty, setStockQty] = useState<StockQty>('1');
 
-  // Filter era-1 rivals (first 4)
+  // Sheet detail modals
+  const [selectedFunding, setSelectedFunding] = useState<FundingRoundId | null>(null);
+  const [buildingSheetOpen, setBuildingSheetOpen] = useState(false);
+
+  const dataCentersOwned = gameState.dataCentersOwned ?? 0;
+  const nextDataCenter = DATA_CENTERS[dataCentersOwned] ?? null;
+
+  // Era 1 rivals (first 4)
   const era1Rivals = gameState.rivals.slice(0, 4);
 
-  // Total stock portfolio value
-  const totalPortfolioValue = era1Rivals.reduce((sum, rival) => {
-    const shares = gameState.stocksOwned?.[rival.id] ?? 0;
-    return sum + shares * rival.stockPrice;
-  }, 0);
-
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Header */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          Capital & Expansion
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Acquire data centers, trade rival tech equity, and secure institutional venture rounds.
-        </p>
-      </div>
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
+      <h1 className="screen-title">Invest</h1>
 
-      {/* Venture Capital / Funding Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-            Venture Financing
-          </h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Best Model Score: {bestScore}
-          </span>
+      {/* Segmented Tab Bar */}
+      <Segmented<InvestTab>
+        options={[
+          { id: 'funding', label: 'Funding' },
+          { id: 'buildings', label: 'Buildings' },
+          { id: 'stocks', label: 'Stocks' },
+        ]}
+        value={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {/* Tab 1: Funding */}
+      {activeTab === 'funding' && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          {(['seed', 'series-a', 'series-b'] as FundingRoundId[]).map((roundId) => {
+            const def = FUNDING_ROUNDS[roundId];
+            const isTaken = Boolean(gameState.fundingTaken?.[roundId]);
+            const check = canTakeFunding(roundId, gameState);
+
+            let btnText = 'Take';
+            let btnDisabled = false;
+            let btnVariant: 'primary' | 'secondary' = 'primary';
+
+            if (isTaken) {
+              btnText = 'Taken';
+              btnDisabled = true;
+              btnVariant = 'secondary';
+            } else if (!check.canTake) {
+              btnDisabled = true;
+              btnVariant = 'secondary';
+              btnText = check.reason ?? 'Locked';
+            }
+
+            return (
+              <GameRow
+                key={roundId}
+                icon={DollarSign}
+                title={def.name}
+                value={`+${formatCost(def.cashAmount)}`}
+                onClick={() => setSelectedFunding(roundId)}
+                button={
+                  <Button
+                    variant={btnVariant}
+                    disabled={btnDisabled}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!btnDisabled) onTakeFunding(roundId);
+                    }}
+                    style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+                  >
+                    <span>{btnText}</span>
+                  </Button>
+                }
+              />
+            );
+          })}
         </div>
+      )}
 
-        {(['seed', 'series-a', 'series-b'] as FundingRoundId[]).map((roundId) => {
-          const def = FUNDING_ROUNDS[roundId];
-          const isTaken = Boolean(gameState.fundingTaken?.[roundId]);
-          const check = canTakeFunding(roundId, gameState);
-
-          return (
-            <Surface
-              key={roundId}
-              style={{
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: isTaken ? 'var(--surface)' : 'var(--surface-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    border: isTaken ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  <Icon
-                    icon={isTaken ? Check : def.requiredBestScore > 0 && !check.canTake ? Lock : DollarSign}
-                    size={20}
-                    color={isTaken ? 'var(--success)' : 'var(--primary)'}
-                    aria-hidden="true"
-                  />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                      {def.name}
-                    </span>
-                    <span style={{ fontWeight: 600, fontSize: '14px', color: isTaken ? 'var(--text-tertiary)' : 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-                      +{formatCost(def.cashAmount)}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    {roundId === 'seed' && 'Early-stage angel funding to bootstrap compute hardware.'}
-                    {roundId === 'series-a' && 'Institutional round. Unlocks Huge model size architectures.'}
-                    {roundId === 'series-b' && 'Growth round. Unlocks Frontier model size foundation.'}
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                    Salary growth: +{Math.round((def.salaryMultiplier - 1.0) * 100)}%
-                    {def.requiredBestScore > 0 && ` · Requires score ≥ ${def.requiredBestScore}`}
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                variant={isTaken ? 'secondary' : 'primary'}
-                onClick={() => onTakeFunding(roundId)}
-                disabled={isTaken || !check.canTake}
-                style={{ minHeight: '48px', width: '100%' }}
-              >
-                <span>
-                  {isTaken
-                    ? 'Round Closed (Funded)'
-                    : !check.canTake
-                    ? (check.reason ?? 'Locked')
-                    : `Close ${def.name} — +${formatCost(def.cashAmount)}`}
-                </span>
-              </Button>
-            </Surface>
-          );
-        })}
-      </section>
-
-      {/* Data Centers Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-            Data Centers
-          </h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            {dataCentersOwned} of 4 facilities owned
-          </span>
-        </div>
-
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          Each facility adds +$0.20/s upkeep and grants +2% training score bonus permanently.
-        </div>
-
-        {DATA_CENTERS.map((dc, index) => {
-          const isOwned = index < dataCentersOwned;
-          const isNext = index === dataCentersOwned;
-          const isLocked = index > dataCentersOwned;
-          const canAfford = gameState.cash >= dc.cost;
-
-          return (
-            <Surface
-              key={dc.name}
-              style={{
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-                opacity: isLocked ? 0.6 : 1.0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: isOwned ? 'var(--surface)' : 'var(--surface-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    border: isOwned ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  <Icon
-                    icon={isOwned ? Check : isLocked ? Lock : Server}
-                    size={20}
-                    color={isOwned ? 'var(--success)' : 'var(--primary)'}
-                    aria-hidden="true"
-                  />
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
-                      Tier {index + 1}: {dc.name}
-                    </span>
-                    <span style={{ fontWeight: 600, fontSize: '13px', color: isOwned ? 'var(--text-tertiary)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                      {isOwned ? 'Acquired' : formatCost(dc.cost)}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    +{dc.powerCapAdded} Power Headroom · +2% Model Score Boost
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                    Upkeep: +${DATA_CENTER_UPKEEP_PER_SEC.toFixed(2)}/s continuous
-                  </div>
-                </div>
-              </div>
-
-              {isNext && (
+      {/* Tab 2: Buildings */}
+      {activeTab === 'buildings' && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          {nextDataCenter ? (
+            <GameRow
+              icon={Server}
+              title={nextDataCenter.name}
+              value={`${dataCentersOwned}/4`}
+              onClick={() => setBuildingSheetOpen(true)}
+              button={
                 <Button
-                  variant="primary"
-                  onClick={onBuyDataCenter}
-                  disabled={!canAfford}
-                  style={{ minHeight: '48px', width: '100%' }}
+                  variant={gameState.cash >= nextDataCenter.cost ? 'primary' : 'secondary'}
+                  disabled={gameState.cash < nextDataCenter.cost}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (gameState.cash >= nextDataCenter.cost) onBuyDataCenter();
+                  }}
+                  style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
                 >
                   <span>
-                    Acquire {dc.name} — {formatCost(dc.cost)}
+                    {gameState.cash >= nextDataCenter.cost
+                      ? `Buy ${formatCost(nextDataCenter.cost)}`
+                      : `Need ${formatCost(nextDataCenter.cost - gameState.cash)}`}
                   </span>
                 </Button>
-              )}
-
-              {isOwned && (
-                <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Icon icon={Check} size={14} aria-hidden="true" />
-                  <span>Online and operational</span>
-                </div>
-              )}
-
-              {isLocked && (
-                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                  Requires Tier {index} ({DATA_CENTERS[index - 1]?.name})
-                </div>
-              )}
-            </Surface>
-          );
-        })}
-      </section>
-
-      {/* Rival Stocks Section */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-            Tech Equity Portfolio
-          </h2>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-            Portfolio Value: {formatMoney(totalPortfolioValue, true)}
-          </span>
+              }
+            />
+          ) : (
+            <GameRow
+              icon={Server}
+              title="All buildings owned"
+              value="4/4"
+              button={
+                <Button variant="secondary" disabled style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}>
+                  <span>Max</span>
+                </Button>
+              }
+            />
+          )}
         </div>
+      )}
 
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          Trade equity in competing AI labs. Stock prices update every 30s based on rival performance. {STOCK_SELL_FEE * 100}% broker fee on sales. Max {STOCK_MAX_SHARES} shares per lab.
-        </div>
+      {/* Tab 3: Stocks */}
+      {activeTab === 'stocks' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Quantity Selector */}
+          <Segmented<StockQty>
+            options={[
+              { id: '1', label: '1' },
+              { id: '10', label: '10' },
+              { id: 'max', label: 'Max' },
+            ]}
+            value={stockQty}
+            onChange={setStockQty}
+          />
 
-        {era1Rivals.map((rival) => {
-          const sharesOwned = gameState.stocksOwned?.[rival.id] ?? 0;
-          const currentPrice = rival.stockPrice;
-          const sellProceeds1 = getStockSellProceeds(currentPrice, 1);
-          const sellProceedsAll = getStockSellProceeds(currentPrice, sharesOwned);
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              borderTop: '1px solid var(--border)',
+            }}
+          >
+            {era1Rivals.map((rival) => {
+              const sharesOwned = gameState.stocksOwned?.[rival.id] ?? 0;
+              const currentPrice = rival.stockPrice;
 
-          const canBuy1 = sharesOwned < STOCK_MAX_SHARES && gameState.cash >= currentPrice;
-          const buy10Count = Math.min(10, STOCK_MAX_SHARES - sharesOwned);
-          const buy10Cost = currentPrice * buy10Count;
-          const canBuy10 = buy10Count > 0 && gameState.cash >= buy10Cost;
+              // Calculate buy amount based on quantity
+              let buyCount = 1;
+              if (stockQty === '10') {
+                buyCount = Math.min(10, STOCK_MAX_SHARES - sharesOwned);
+              } else if (stockQty === 'max') {
+                const maxAfford = Math.floor(gameState.cash / currentPrice);
+                buyCount = Math.max(0, Math.min(STOCK_MAX_SHARES - sharesOwned, maxAfford));
+              }
+              const buyTotalCost = buyCount * currentPrice;
+              const canBuy = buyCount > 0 && gameState.cash >= buyTotalCost && sharesOwned < STOCK_MAX_SHARES;
 
-          const canSell1 = sharesOwned >= 1;
-          const canSellAll = sharesOwned > 0;
+              // Calculate sell amount based on quantity
+              let sellCount = 1;
+              if (stockQty === '10') {
+                sellCount = Math.min(10, sharesOwned);
+              } else if (stockQty === 'max') {
+                sellCount = sharesOwned;
+              }
+              const canSell = sellCount > 0 && sharesOwned >= sellCount;
+              const sellProceeds = getStockSellProceeds(currentPrice, Math.max(1, sellCount));
 
-          return (
-            <Surface
-              key={rival.id}
-              style={{
-                padding: 'var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                  <Monogram code={rival.shortCode} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)' }}>
+              return (
+                <div
+                  key={rival.id}
+                  style={{
+                    minHeight: '56px',
+                    padding: '12px 0',
+                    borderBottom: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ flexShrink: 0 }}>
+                    <Monogram code={rival.shortCode} />
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <span
+                      style={{
+                        fontSize: '16px',
+                        fontWeight: 500,
+                        color: 'var(--text)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {rival.name}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      Owned: {sharesOwned} / {STOCK_MAX_SHARES} shares
-                    </div>
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        color: 'var(--text-secondary)',
+                        fontVariantNumeric: 'tabular-nums',
+                        marginTop: '2px',
+                      }}
+                    >
+                      {formatCost(currentPrice)}/sh · {sharesOwned} sh
+                    </span>
+                  </div>
+
+                  {/* Minus (Sell) and Plus (Buy) buttons */}
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Button
+                      variant="secondary"
+                      disabled={!canSell}
+                      onClick={() => onSellStock(rival.id, sellCount)}
+                      aria-label={`Sell ${sellCount} shares of ${rival.name} for ${formatSellPrice(sellProceeds)}`}
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        padding: 0,
+                        minHeight: '48px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Minus size={20} strokeWidth={1.75} />
+                    </Button>
+
+                    <Button
+                      variant={canBuy ? 'primary' : 'secondary'}
+                      disabled={!canBuy}
+                      onClick={() => onBuyStock(rival.id, buyCount)}
+                      aria-label={`Buy ${buyCount} shares of ${rival.name} for ${formatCost(buyTotalCost)}`}
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        padding: 0,
+                        minHeight: '48px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Plus size={20} strokeWidth={1.75} />
+                    </Button>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                    {formatCost(currentPrice)}/sh
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>
-                    Sell net: {formatSellPrice(sellProceeds1)}
-                  </div>
-                </div>
-              </div>
+      {/* Funding Detail Sheet */}
+      <Modal isOpen={selectedFunding !== null}>
+        {selectedFunding && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+              {FUNDING_ROUNDS[selectedFunding].name}
+            </h2>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {selectedFunding === 'seed' && 'No salary increase'}
+              {selectedFunding === 'series-a' && 'Pay +10%'}
+              {selectedFunding === 'series-b' && 'Pay +10%'}
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedFunding(null)}
+              style={{ width: '100%', minHeight: '48px' }}
+            >
+              <span>Close</span>
+            </Button>
+          </div>
+        )}
+      </Modal>
 
-              {/* Action Buttons: 48px touch targets */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
-                <Button
-                  variant="primary"
-                  onClick={() => onBuyStock(rival.id, 1)}
-                  disabled={!canBuy1}
-                  style={{ minHeight: '48px', fontSize: '13px' }}
-                >
-                  <span>Buy 1 ({formatCost(currentPrice)})</span>
-                </Button>
-
-                <Button
-                  variant="primary"
-                  onClick={() => onBuyStock(rival.id, buy10Count)}
-                  disabled={!canBuy10}
-                  style={{ minHeight: '48px', fontSize: '13px' }}
-                >
-                  <span>Buy {buy10Count} ({formatCost(buy10Cost)})</span>
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={() => onSellStock(rival.id, 1)}
-                  disabled={!canSell1}
-                  style={{ minHeight: '48px', fontSize: '13px' }}
-                >
-                  <span>Sell 1 (+{formatSellPrice(sellProceeds1)})</span>
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={() => onSellStock(rival.id, sharesOwned)}
-                  disabled={!canSellAll}
-                  style={{ minHeight: '48px', fontSize: '13px' }}
-                >
-                  <span>Sell All (+{formatSellPrice(sellProceedsAll)})</span>
-                </Button>
-              </div>
-            </Surface>
-          );
-        })}
-      </section>
+      {/* Building Detail Sheet */}
+      <Modal isOpen={buildingSheetOpen}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+            {nextDataCenter ? nextDataCenter.name : 'Data Centers'}
+          </h2>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            {nextDataCenter
+              ? `+${nextDataCenter.powerCapAdded} power · +$${DATA_CENTER_UPKEEP_PER_SEC.toFixed(2)}/s upkeep`
+              : 'Maximum data centers constructed'}
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => setBuildingSheetOpen(false)}
+            style={{ width: '100%', minHeight: '48px' }}
+          >
+            <span>Close</span>
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };
+
 export default InvestScreen;

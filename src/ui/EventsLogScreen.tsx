@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ChevronLeft,
-  Clock,
+  Bell,
   Radio,
 } from 'lucide-react';
 import { Icon } from './Icon';
-import { Surface } from './Surface';
-import type { GameState } from '../game/types';
+import { Button } from './Button';
+import { GameRow } from './GameRow';
+import { Modal } from './Modal';
+import type { GameState, EventLogEntry } from '../game/types';
 
 export interface EventsLogScreenProps {
   gameState: GameState;
@@ -17,12 +19,23 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
   gameState,
   onBackToMore,
 }) => {
-  const logs = gameState.eventLogs ?? [];
+  const [selectedLog, setSelectedLog] = useState<EventLogEntry | null>(null);
+
+  const logs = (gameState.eventLogs ?? []).slice().reverse();
   const activeEvents = gameState.activeTimedEvents ?? [];
 
   return (
-    <div className="tab-pane" style={{ gap: 'var(--space-4)' }}>
-      {/* Back button */}
+    <div
+      className="tab-pane"
+      style={{
+        padding: '16px',
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}
+    >
       <button
         type="button"
         onClick={onBackToMore}
@@ -37,7 +50,7 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
           fontSize: '14px',
           fontWeight: 500,
           cursor: 'pointer',
-          padding: 'var(--space-2) 0',
+          padding: '8px 0',
           minHeight: '48px',
         }}
       >
@@ -45,107 +58,96 @@ export const EventsLogScreen: React.FC<EventsLogScreenProps> = ({
         <span>Back to More</span>
       </button>
 
-      {/* Screen Title */}
-      <div>
-        <h1 className="screen-title" style={{ marginBottom: 'var(--space-1)' }}>
-          Events Log
-        </h1>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-          Chronological record of lab occurrences, market shocks, and research breakthroughs.
-        </p>
-      </div>
+      <h1 className="screen-title">Events</h1>
 
-      {/* Active Timed Events */}
+      {/* Active Ongoing Effects */}
       {activeEvents.length > 0 && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-            <Icon icon={Radio} size={16} color="var(--primary)" aria-hidden="true" />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-              Active Ongoing Effects ({activeEvents.length})
-            </span>
-          </div>
-
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
           {activeEvents.map((ev, idx) => (
-            <Surface
+            <GameRow
               key={`${ev.id}-${idx}`}
-              style={{
-                padding: 'var(--space-3) var(--space-4)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderColor: 'var(--primary)',
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  {ev.title}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  {ev.id === 'hype' && 'Hype boosted to ≥ 1.25x'}
-                  {ev.id === 'outage' && 'Usable GPUs halved'}
-                  {ev.id === 'rules' && 'Revenue reduced by 20%, funding paused'}
-                  {ev.id === 'brownout' && 'Power cap reduced by 2'}
-                  {ev.id === 'stumble' && 'Rival appeal reduced by 50%'}
-                </div>
-              </div>
-
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--primary)' }}>
-                {Math.ceil(ev.remainingSeconds)}s remaining
-              </span>
-            </Surface>
+              icon={Radio}
+              iconColor="var(--primary)"
+              title={ev.title}
+              value={`${Math.ceil(ev.remainingSeconds)}s left`}
+              valueColor="var(--primary)"
+            />
           ))}
-        </section>
+        </div>
       )}
 
-      {/* History Log */}
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-          Event History (Last 30)
-        </h2>
-
+      {/* Events Log List */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
         {logs.length === 0 ? (
-          <Surface
+          <div
             style={{
-              padding: 'var(--space-6) var(--space-4)',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
+              padding: '16px',
+              fontSize: '14px',
+              color: 'var(--text-secondary)',
+              borderBottom: '1px solid var(--border)',
             }}
           >
-            <Icon icon={Clock} size={24} color="var(--text-secondary)" aria-hidden="true" />
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-              No recorded events yet. Tap 'Back to More' above or train models to trigger industry and market events.
-            </p>
-          </Surface>
+            No events yet
+          </div>
         ) : (
           logs.map((log) => (
-            <Surface
+            <GameRow
               key={log.id}
-              style={{
-                padding: 'var(--space-3) var(--space-4)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  {log.title}
-                </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                  {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </span>
-              </div>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                {log.outcomeText}
-              </p>
-            </Surface>
+              icon={Bell}
+              title={log.title}
+              subtitle={new Date(log.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              showChevron
+              onClick={() => setSelectedLog(log)}
+            />
           ))
         )}
-      </section>
+      </div>
+
+      {/* Event Details Sheet */}
+      <Modal isOpen={selectedLog !== null}>
+        {selectedLog && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+                {selectedLog.title}
+              </h2>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                {new Date(selectedLog.timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {selectedLog.outcomeText}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedLog(null)}
+              style={{ width: '100%', minHeight: '48px' }}
+            >
+              <span>Close</span>
+            </Button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
+
 export default EventsLogScreen;

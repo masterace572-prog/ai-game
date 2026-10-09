@@ -331,6 +331,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Bought GPU');
     }
   };
 
@@ -340,6 +341,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Hired');
     }
   };
 
@@ -349,6 +351,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Bought Cooling');
     }
   };
 
@@ -358,6 +361,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Bought Snacks');
     }
   };
 
@@ -367,6 +371,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Upgraded Data');
     }
   };
 
@@ -376,6 +381,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Bought Building');
     }
   };
 
@@ -385,6 +391,8 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      const roundLabel = roundId === 'seed' ? 'Took Seed' : roundId === 'series-a' ? 'Took Series A' : 'Took Series B';
+      setToastMessage(roundLabel);
     }
   };
 
@@ -421,6 +429,7 @@ export const App: React.FC = () => {
     if (nextState !== gameStateRef.current) {
       setGameState(nextState);
       triggerSave(nextState);
+      setToastMessage('Researched');
     }
   };
 
