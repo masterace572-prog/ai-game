@@ -1,178 +1,104 @@
-export type ModelSizeId = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'frontier';
+export type ProductId =
+  | 'chat'
+  | 'api'
+  | 'code'
+  | 'enterprise'
+  | 'mobile'
+  | 'science'
+  | 'robots';
 
-export const MODEL_SIZE_ORDER: ModelSizeId[] = [
-  'tiny',
-  'small',
-  'medium',
-  'large',
-  'huge',
-  'frontier',
-];
+export interface ProductDef {
+  id: ProductId;
+  name: string;
+  iconName: 'MessageSquare' | 'Plug' | 'Code' | 'Building2' | 'Smartphone' | 'Atom' | 'Bot';
+  unlockStep: number; // -1 for start, 1 for Claude Instant, 4 for Haiku, etc.
+  unlockModelName: string;
+  baseCost: number;
+  costGrowth: number;
+  incomePerLevel: number;
+}
 
-export interface TrainedModel {
+export type FundingRoundId = 'seed' | 'series-a' | 'series-b' | 'series-c' | 'series-d';
+
+export interface FundingDef {
+  id: FundingRoundId;
+  name: string;
+  requiredStep: number;
+  requiredModelName: string;
+  multiplier: number;
+  minLumpSum: number;
+  requirementText: string;
+}
+
+export interface BuildingDef {
+  index: number;
   id: string;
   name: string;
-  sizeId: ModelSizeId;
-  score: number;
-  trainedAt: number;
-  launched: boolean;
-  launchedAt?: number;
-}
-
-export interface TrainingJob {
-  id: string;
-  sizeId: ModelSizeId;
-  progressSeconds: number;
-  totalSeconds: number;
-  rolledScore: number;
-  proposedName: string;
-}
-
-export interface RivalTrainingJob {
-  sizeId: ModelSizeId;
-  progressSeconds: number;
-  totalSeconds: number;
+  cost: number;
+  multiplier: number;
+  description: string;
 }
 
 export interface RivalState {
   id: string;
   name: string;
-  shortCode: string; // Monogram: HA, PM, NG, VW
-  style: string;
-  bestScore: number;
-  freshness: number;
-  stockPrice: number;
-  speedMultiplier: number;
-  growthFactor: number;
-  hypeMultiplier: number;
-  preferredSizes: ModelSizeId[];
-  trainingJob: RivalTrainingJob | null;
-  idleTimer: number;
+  shortCode: string;
+  strength: number;
+  step: number;
+  timer: number;
 }
 
-export type FundingRoundId = 'seed' | 'series-a' | 'series-b';
-
-export type ResearchNodeId =
-  | 'clean-data'
-  | 'optimizers'
-  | 'cheap-flops'
-  | 'recruiter'
-  | 'brand'
-  | 'mixture'
-  | 'reasoning'
-  | 'agent-harness';
-
-export type EventId =
-  | 'hype'
-  | 'outage'
-  | 'rules'
-  | 'viral'
-  | 'leak'
-  | 'poach'
-  | 'brownout'
-  | 'surprise'
-  | 'investor'
-  | 'stumble'
-  | 'dataset'
-  | 'quiet';
-
-export interface ActiveTimedEvent {
-  id: EventId;
-  title: string;
-  remainingSeconds: number;
-  targetRivalId?: string;
-  scoreDeltaMultiplier?: number;
+export interface TrainingJob {
+  step: number;
+  progress: number;
+  total: number;
 }
 
 export interface EventLogEntry {
   id: string;
-  eventId: EventId;
   title: string;
   outcomeText: string;
   timestamp: number;
 }
 
-export interface PendingEvent {
-  id: EventId;
-  title: string;
-  description: string;
-  isChoice?: boolean;
-  choice1Label?: string;
-  choice2Label?: string;
-  cost?: number;
-  rivalId?: string;
-  reputationChange?: number;
+export interface GameState {
+  version: 2;
+  savedAt: number;
+  labName: string;
+  cash: number;
+  lifetimeEarned: number;
+  modelStep: number; // -1 at start
+  training: TrainingJob | null;
+  readyStep: number | null;
+  products: Record<ProductId, number>;
+  rivals: RivalState[];
+  stocks: Record<string, number>;
+  fundingTaken: Record<string, boolean>;
+  people: {
+    engineers: number;
+    sales: number;
+    researchers: number;
+  };
+  gpuClusters: number;
+  buildings: number;
+  lastTickTime: number;
+  soundEnabled: boolean;
+  reduceMotion: boolean;
+  showFreshStartSheet?: boolean;
+  achievements?: Partial<Record<string, boolean>>;
+  tutorialDone?: boolean;
+  eventLogs?: EventLogEntry[];
 }
 
 export type AchievementId =
-  | 'first-spark'
-  | 'on-the-board'
-  | 'pocket-lab'
-  | 'full-house'
-  | 'data-hoarder'
-  | 'upset'
-  | 'market-leader'
-  | 'millionaire'
-  | 'public-company'
-  | 'night-shift'
-  | 'new-era'
-  | 'frontier';
+  | 'first_model'
+  | 'chat_10'
+  | 'chat_50'
+  | 'hire_engineer'
+  | 'claude_2'
+  | 'claude_3_opus'
+  | 'seed_funding'
+  | 'first_million'
+  | 'market_leader'
+  | 'server_room';
 
-export interface GameState {
-  version: 1;
-  savedAt: number;
-  labName: string;
-  labNameConfirmed: boolean;
-  cash: number;
-  gpus: number;
-  powerCap: number;
-  researchers: number;
-  dataQuality: number;
-  reputation: number;
-  era: number;
-  eraPoints: number;
-  allTimeBestScore?: number;
-  usedModelNames: string[];
-  currentTraining: TrainingJob | null;
-  readyModel: TrainedModel | null;
-  bestLaunchedModel: TrainedModel | null;
-  launchedModels: TrainedModel[];
-  lifetimeCashEarned: number;
-  lastTickTime: number;
-  playerFreshness: number;
-  rivals: RivalState[];
-
-  // Economy state (Phase 5)
-  coolingPurchases: number; // 0 to 5
-  officeSnacks: boolean;
-  salaryMultiplier: number;
-  dataCentersOwned: number; // 0 to 4
-  stocksOwned: Record<string, number>; // rivalId -> shares (max 200)
-  stockPriceTimer: number; // ticks every 30s
-  fundingTaken: Record<string, boolean>; // seed, series-a, series-b
-  marketingActiveSeconds: number; // remaining duration of hype
-  marketingCooldownSeconds: number; // cooldown before next campaign
-  payrollTight: boolean;
-
-  // Research tree state (Phase 6)
-  researchOwned: Partial<Record<ResearchNodeId, boolean>>;
-
-  // Events system state (Phase 7)
-  eventCooldownTimer: number; // cooldown in seconds before next event can roll (90s default)
-  eventRollTimer: number; // 60s timer between roll checks
-  pendingEvent: PendingEvent | null;
-  activeTimedEvents: ActiveTimedEvent[];
-  eventLogs: EventLogEntry[]; // last 30 events
-
-  // Achievements state (Phase 7)
-  achievements: Partial<Record<AchievementId, boolean>>;
-  timesPrestiged: number;
-
-  // Tutorial state (Phase 7)
-  tutorialStep: number;
-  tutorialDone: boolean;
-
-  // Settings & Accessibility (Phase 8)
-  soundEnabled: boolean;
-  reduceMotion: boolean;
-}

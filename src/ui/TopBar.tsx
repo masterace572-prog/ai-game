@@ -1,12 +1,13 @@
 import React from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 import { Icon } from './Icon';
-import { formatShort, formatRate } from './format';
+import { formatShort } from './format';
 
 export interface TopBarProps {
   labName: string;
-  cash: number;
-  incomePerSec: number;
+  cash?: number;
+  incomePerSec?: number;
+  ratePerSec?: number;
   soundEnabled?: boolean;
   onToggleSound?: () => void;
 }
@@ -18,7 +19,6 @@ export function formatTopBarCash(amount: number): string {
 export const TopBar: React.FC<TopBarProps> = ({
   labName,
   cash,
-  incomePerSec,
   soundEnabled = true,
   onToggleSound,
 }) => {
@@ -39,21 +39,34 @@ export const TopBar: React.FC<TopBarProps> = ({
         flexShrink: 0,
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
         <span
           style={{
             fontSize: '16px',
             lineHeight: '24px',
-            fontWeight: 600,
+            fontWeight: 700,
             color: 'var(--text)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            display: 'block',
           }}
         >
           {labName}
         </span>
+        {typeof cash === 'number' && (
+          <span
+            style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--accent)',
+              backgroundColor: 'var(--accent-subtle)',
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+            }}
+          >
+            {formatTopBarCash(cash)}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
@@ -65,56 +78,23 @@ export const TopBar: React.FC<TopBarProps> = ({
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--text-secondary)',
+              color: soundEnabled ? 'var(--text-secondary)' : 'var(--text-tertiary)',
               cursor: 'pointer',
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               width: '48px',
               height: '48px',
               padding: 0,
+              boxShadow: 'none',
+              textShadow: 'none',
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
-            <Icon
-              icon={soundEnabled ? Volume2 : VolumeX}
-              size={20}
-              color="var(--text-secondary)"
-              aria-hidden="true"
-            />
+            <Icon icon={soundEnabled ? Volume2 : VolumeX} size={18} aria-hidden="true" />
           </button>
         )}
-
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            fontVariantNumeric: 'tabular-nums',
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: '16px',
-              lineHeight: '20px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {formatTopBarCash(cash)}
-          </span>
-          <span
-            style={{
-              fontSize: '12px',
-              lineHeight: '16px',
-              color: incomePerSec >= 0 ? 'var(--text-secondary)' : 'var(--danger)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {formatRate(incomePerSec)}
-          </span>
-        </div>
       </div>
     </header>
   );

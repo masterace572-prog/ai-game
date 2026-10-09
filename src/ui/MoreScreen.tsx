@@ -1,24 +1,18 @@
 import React from 'react';
 import {
-  Users,
-  FlaskConical,
   Bell,
   Award,
   Settings,
-  History,
-  Cpu,
-  Database,
-  Star,
-  Globe,
+  Rocket,
 } from 'lucide-react';
 import { GameRow } from './GameRow';
-import { getUsableGpus } from '../game/logic';
+import { CLAUDE_LADDER } from '../game/balance';
+import { calculateTotalIncomePerSec } from '../game/logic';
 import type { GameState } from '../game/types';
+import { formatMoney, formatRate } from './format';
 
 export interface MoreScreenProps {
   gameState: GameState;
-  onNavigateToTeam: () => void;
-  onNavigateToResearch: () => void;
   onNavigateToEvents: () => void;
   onNavigateToAchievements: () => void;
   onNavigateToSettings: () => void;
@@ -27,122 +21,110 @@ export interface MoreScreenProps {
 
 export const MoreScreen: React.FC<MoreScreenProps> = ({
   gameState,
-  onNavigateToTeam,
-  onNavigateToResearch,
   onNavigateToEvents,
   onNavigateToAchievements,
   onNavigateToSettings,
   onNavigateToNewEra,
 }) => {
-  const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
+  const incomePerSec = calculateTotalIncomePerSec(gameState);
 
   return (
     <div
-      className="tab-pane"
       style={{
-        padding: '16px',
-        maxWidth: '480px',
-        margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: '24px',
+        gap: 'var(--space-4)',
+        padding: 'var(--space-4)',
       }}
     >
-      <h1 className="screen-title">More</h1>
-
       {/* Navigation Menu */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          borderTop: '1px solid var(--border)',
+          backgroundColor: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border)',
+          overflow: 'hidden',
         }}
       >
         <GameRow
-          icon={FlaskConical}
-          iconColor="var(--research)"
-          title="Research"
-          showChevron
-          onClick={onNavigateToResearch}
-        />
-        <GameRow
-          icon={Users}
-          iconColor="var(--people)"
-          title="Team"
-          showChevron
-          onClick={onNavigateToTeam}
-        />
-        <GameRow
           icon={Bell}
-          iconColor="var(--hype)"
+          iconColor="var(--accent)"
           title="Events"
+          subtitle="Recent announcements & log"
           showChevron
           onClick={onNavigateToEvents}
         />
         <GameRow
           icon={Award}
-          iconColor="var(--gold)"
+          iconColor="var(--warning)"
           title="Achievements"
+          subtitle="Milestones & badges"
           showChevron
           onClick={onNavigateToAchievements}
         />
         <GameRow
-          icon={History}
-          iconColor="var(--gold)"
+          icon={Rocket}
+          iconColor="var(--accent)"
           title="New Era"
+          subtitle="Space Compute (Coming soon)"
           showChevron
           onClick={onNavigateToNewEra}
         />
         <GameRow
           icon={Settings}
-          iconColor="var(--compute)"
+          iconColor="var(--text-secondary)"
           title="Settings"
+          subtitle="Audio, motion & data"
           showChevron
           onClick={onNavigateToSettings}
         />
       </div>
 
-      {/* Plain Stats List */}
+      {/* Career Stats */}
       <div
         style={{
+          backgroundColor: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
           display: 'flex',
           flexDirection: 'column',
-          borderTop: '1px solid var(--border)',
+          gap: 'var(--space-3)',
         }}
       >
-        <GameRow
-          icon={Cpu}
-          iconColor="var(--compute)"
-          title="GPUs"
-          value={`${usableGpus}/${gameState.gpus}`}
-        />
-        <GameRow
-          icon={Users}
-          iconColor="var(--people)"
-          title="People"
-          value={gameState.researchers}
-        />
-        <GameRow
-          icon={Database}
-          iconColor="var(--research)"
-          title="Data"
-          value={gameState.dataQuality}
-        />
-        <GameRow
-          icon={Star}
-          iconColor="var(--gold)"
-          title="Score"
-          value={gameState.bestLaunchedModel?.score ?? '—'}
-        />
-        <GameRow
-          icon={Globe}
-          iconColor="var(--gold)"
-          title="Era"
-          value={gameState.era}
-        />
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Career Overview
+        </span>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Lifetime Earned</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
+              {formatMoney(gameState.lifetimeEarned)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Current Revenue</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--success)' }}>
+              {formatRate(incomePerSec)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Current Model</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+              {gameState.modelStep >= 0 ? CLAUDE_LADDER[gameState.modelStep] : 'None'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Total Team</div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+              {gameState.people.engineers + gameState.people.sales + gameState.people.researchers} staff
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
-
-export default MoreScreen;

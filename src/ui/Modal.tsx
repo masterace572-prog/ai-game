@@ -2,10 +2,12 @@ import React from 'react';
 
 export interface ModalProps {
   isOpen: boolean;
+  title?: string;
+  onClose?: () => void;
   children: React.ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, title, onClose, children }) => {
   if (!isOpen) return null;
 
   return (
@@ -18,6 +20,11 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, children }) => {
         alignItems: 'flex-end',
         justifyContent: 'center',
         zIndex: 1000,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) {
+          onClose();
+        }
       }}
     >
       <div
@@ -35,8 +42,16 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, children }) => {
           flexDirection: 'column',
           gap: 'var(--space-16)',
           boxShadow: 'none',
+          boxSizing: 'border-box',
         }}
       >
+        {title && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
+              {title}
+            </h2>
+          </div>
+        )}
         {children}
       </div>
     </div>

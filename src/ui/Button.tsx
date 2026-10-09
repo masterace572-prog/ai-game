@@ -1,26 +1,34 @@
 import React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  fullWidth?: boolean;
   children: React.ReactNode;
 }
 
 export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
+  size = 'md',
+  fullWidth = false,
   children,
   className = '',
   style,
   disabled,
   ...props
 }) => {
-  const effectiveVariant = disabled ? 'secondary' : variant;
+  const effectiveVariant = disabled && variant !== 'ghost' ? 'secondary' : variant;
+
+  const height = size === 'sm' ? '36px' : size === 'lg' ? '54px' : '48px';
+  const padding = size === 'sm' ? '0 12px' : '0 16px';
+  const fontSize = size === 'sm' ? '13px' : '15px';
 
   const baseStyle: React.CSSProperties = {
-    height: '48px',
+    height,
     borderRadius: '12px',
-    padding: '0 16px',
+    padding,
     fontFamily: 'var(--font)',
-    fontSize: '15px',
+    fontSize,
     fontWeight: 700,
     display: 'inline-flex',
     alignItems: 'center',
@@ -31,7 +39,9 @@ export const Button: React.FC<ButtonProps> = ({
     boxShadow: 'none',
     textShadow: 'none',
     outline: 'none',
-    transition: 'background-color var(--duration) var(--ease), border-color var(--duration) var(--ease), transform 120ms ease',
+    width: fullWidth ? '100%' : 'auto',
+    transition:
+      'background-color var(--duration) var(--ease), border-color var(--duration) var(--ease), transform 120ms ease',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
     ...(effectiveVariant === 'primary'
@@ -39,6 +49,12 @@ export const Button: React.FC<ButtonProps> = ({
           backgroundColor: 'var(--brand-claude)',
           color: '#ffffff',
           border: 'none',
+        }
+      : effectiveVariant === 'ghost'
+      ? {
+          backgroundColor: 'transparent',
+          color: 'var(--text-secondary)',
+          border: '1px solid var(--border)',
         }
       : {
           backgroundColor: 'var(--surface-2)',

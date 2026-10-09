@@ -1,8 +1,8 @@
 import React from 'react';
-import { Factory, Cpu, ChartLine, Landmark, Menu, type LucideIcon } from 'lucide-react';
+import { Factory, Cpu, ShoppingBag, Landmark, Menu, type LucideIcon } from 'lucide-react';
 import { Icon } from './Icon';
 
-export type NavTabId = 'lab' | 'models' | 'market' | 'invest' | 'more';
+export type NavTabId = 'lab' | 'models' | 'shop' | 'invest' | 'more';
 
 interface NavItem {
   id: NavTabId;
@@ -13,13 +13,13 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'lab', label: 'Lab', icon: Factory },
   { id: 'models', label: 'Models', icon: Cpu },
-  { id: 'market', label: 'Market', icon: ChartLine },
+  { id: 'shop', label: 'Shop', icon: ShoppingBag },
   { id: 'invest', label: 'Invest', icon: Landmark },
   { id: 'more', label: 'More', icon: Menu },
 ];
 
 export interface BottomNavProps {
-  activeTab: NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings' | 'new-era';
+  activeTab: NavTabId | 'events' | 'achievements' | 'settings' | 'new-era';
   onSelectTab: (tab: NavTabId) => void;
 }
 
@@ -39,8 +39,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onSelectTab }) 
     >
       {NAV_ITEMS.map((item) => {
         const isMoreSub =
-          activeTab === 'team' ||
-          activeTab === 'research' ||
           activeTab === 'events' ||
           activeTab === 'achievements' ||
           activeTab === 'settings' ||
@@ -68,20 +66,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onSelectTab }) 
               padding: 'var(--space-4) 0',
               cursor: 'pointer',
               outline: 'none',
-              boxShadow: 'none',
-              textShadow: 'none',
               WebkitTapHighlightColor: 'transparent',
-              transition: 'color var(--duration) var(--ease)',
+              fontFamily: 'inherit',
             }}
+            aria-current={isActive ? 'page' : undefined}
           >
-            <Icon icon={item.icon} size={22} color="currentColor" aria-hidden="true" />
+            <Icon icon={item.icon} size={22} color={color} />
             <span
               style={{
                 fontSize: '11px',
-                lineHeight: '14px',
-                fontFamily: 'var(--font)',
+                lineHeight: 1.2,
                 fontWeight,
                 color,
+                letterSpacing: '0.01em',
               }}
             >
               {item.label}

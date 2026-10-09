@@ -1,16 +1,12 @@
 import {
   SAVE_KEY,
   BACKUP_SAVE_KEY,
-  STARTING_CASH,
-  STARTING_GPUS,
-  STARTING_POWER_CAP,
-  STARTING_RESEARCHERS,
-  STARTING_DATA_QUALITY,
-  STARTING_REPUTATION,
-  STARTING_ERA,
-  STARTING_ERA_POINTS,
+  SAVE_V1_KEY,
+  BACKUP_V1_KEY,
   DEFAULT_LAB_NAME,
-  RIVALS_ERA_1,
+  STARTING_CASH,
+  RIVAL_DEFINITIONS,
+  getRivalNextTimer,
 } from './balance';
 import type { GameState, RivalState } from './types';
 
@@ -27,104 +23,58 @@ export function getDefaultStorage(): StorageLike | null {
   return null;
 }
 
-export function createDefaultRivals(): RivalState[] {
-  const shortCodeMap: Record<string, string> = {
-    helix: 'GP',
-    pebble: 'DS',
-    northglass: 'GE',
-    vesper: 'GR',
-  };
-  const preferredMap: Record<string, RivalState['preferredSizes']> = {
-    helix: ['medium', 'large'],
-    pebble: ['tiny', 'small'],
-    northglass: ['medium', 'large'],
-    vesper: ['small', 'medium'],
-  };
-  const idleMap: Record<string, number> = {
-    helix: 5,
-    pebble: 3,
-    northglass: 8,
-    vesper: 4,
-  };
-
-  return RIVALS_ERA_1.map((def) => ({
+export function createInitialRivals(): RivalState[] {
+  return RIVAL_DEFINITIONS.map((def) => ({
     id: def.id,
     name: def.name,
-    shortCode: shortCodeMap[def.id] ?? def.id.slice(0, 2).toUpperCase(),
-    style: def.style,
-    bestScore: def.startingBestScore,
-    freshness: 1.0,
-    stockPrice: def.startingStockPrice,
-    speedMultiplier: def.speedMultiplier,
-    growthFactor: def.growthFactor,
-    hypeMultiplier: def.hypeMultiplier ?? 1.0,
-    preferredSizes: preferredMap[def.id] ?? ['small'],
-    trainingJob: null,
-    idleTimer: idleMap[def.id] ?? 5,
+    shortCode: def.shortCode,
+    strength: def.strength,
+    step: 0,
+    timer: getRivalNextTimer(0),
   }));
 }
 
-export function createInitialState(
-  labName: string = DEFAULT_LAB_NAME,
-  labNameConfirmed: boolean = true
-): GameState {
+export function createInitialState(showFreshStartSheet: boolean = true): GameState {
   return {
-    version: 1,
+    version: 2,
     savedAt: Date.now(),
-    labName,
-    labNameConfirmed,
+    labName: DEFAULT_LAB_NAME,
     cash: STARTING_CASH,
-    gpus: STARTING_GPUS,
-    powerCap: STARTING_POWER_CAP,
-    researchers: STARTING_RESEARCHERS,
-    dataQuality: STARTING_DATA_QUALITY,
-    reputation: STARTING_REPUTATION,
-    era: STARTING_ERA,
-    eraPoints: STARTING_ERA_POINTS,
-    allTimeBestScore: 0,
-    usedModelNames: [],
-    currentTraining: null,
-    readyModel: null,
-    bestLaunchedModel: null,
-    launchedModels: [],
-    lifetimeCashEarned: 0,
-    lastTickTime: Date.now(),
-    playerFreshness: 1.0,
-    rivals: createDefaultRivals(),
-
-    // Economy state
-    coolingPurchases: 0,
-    officeSnacks: false,
-    salaryMultiplier: 1.0,
-    dataCentersOwned: 0,
-    stocksOwned: { helix: 0, pebble: 0, northglass: 0, vesper: 0 },
-    stockPriceTimer: 30,
+    lifetimeEarned: STARTING_CASH,
+    modelStep: -1,
+    training: null,
+    readyStep: null,
+    products: {
+      chat: 0,
+      api: 0,
+      code: 0,
+      enterprise: 0,
+      mobile: 0,
+      science: 0,
+      robots: 0,
+    },
+    rivals: createInitialRivals(),
+    stocks: {
+      helix: 0,
+      northglass: 0,
+      vesper: 0,
+      pebble: 0,
+    },
     fundingTaken: {},
-    marketingActiveSeconds: 0,
-    marketingCooldownSeconds: 0,
-    payrollTight: false,
-
-    // Research state
-    researchOwned: {},
-
-    // Events state (Phase 7)
-    eventCooldownTimer: 90,
-    eventRollTimer: 60,
-    pendingEvent: null,
-    activeTimedEvents: [],
-    eventLogs: [],
-
-    // Achievements state (Phase 7)
-    achievements: {},
-    timesPrestiged: 0,
-
-    // Tutorial state (Phase 7)
-    tutorialStep: 1,
-    tutorialDone: false,
-
-    // Settings (Phase 8)
+    people: {
+      engineers: 0,
+      sales: 0,
+      researchers: 0,
+    },
+    gpuClusters: 0,
+    buildings: 0,
+    lastTickTime: Date.now(),
     soundEnabled: true,
     reduceMotion: false,
+    showFreshStartSheet,
+    achievements: {},
+    tutorialDone: true,
+    eventLogs: [],
   };
 }
 
@@ -135,7 +85,7 @@ export function saveGameState(state: GameState, storage?: StorageLike | null): b
   try {
     const serialized = JSON.stringify({
       ...state,
-      version: 1,
+      version: 2,
       savedAt: Date.now(),
     });
 
@@ -160,79 +110,38 @@ export interface LoadResult {
   state: GameState;
   loadedFromBackup: boolean;
   corrupted: boolean;
+  migratedFromV1?: boolean;
 }
 
-function parseState(raw: string | null): GameState | null {
+function parseV2State(raw: string | null): GameState | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.version === 1 && typeof parsed.cash === 'number') {
-      const rivalNameMap: Record<string, { name: string; shortCode: string }> = {
-        helix: { name: 'ChatGPT', shortCode: 'GP' },
-        pebble: { name: 'DeepSeek', shortCode: 'DS' },
-        northglass: { name: 'Gemini', shortCode: 'GE' },
-        vesper: { name: 'Grok', shortCode: 'GR' },
-        copperline: { name: 'Llama', shortCode: 'LL' },
-        bracket: { name: 'Mistral', shortCode: 'MI' },
-      };
-
-      const rawRivals: RivalState[] =
-        Array.isArray(parsed.rivals) && parsed.rivals.length > 0
-          ? parsed.rivals
-          : createDefaultRivals();
-
-      const updatedRivals = rawRivals.map((rival: RivalState) => {
-        const match = rivalNameMap[rival.id];
-        if (match) {
-          return {
-            ...rival,
-            name: match.name,
-            shortCode: match.shortCode,
-          };
-        }
-        return rival;
-      });
-
-      const labName =
-        parsed.labName === 'Little Lamp Lab' || !parsed.labName ? 'Claude' : parsed.labName;
-
+    if (parsed && parsed.version === 2 && typeof parsed.cash === 'number') {
       return {
         ...parsed,
-        labName,
-        labNameConfirmed: true,
-        playerFreshness: parsed.playerFreshness ?? 1.0,
-        rivals: updatedRivals,
-        coolingPurchases: parsed.coolingPurchases ?? 0,
-        officeSnacks: parsed.officeSnacks ?? false,
-        salaryMultiplier: parsed.salaryMultiplier ?? 1.0,
-        dataCentersOwned: parsed.dataCentersOwned ?? 0,
-        stocksOwned: parsed.stocksOwned ?? { helix: 0, pebble: 0, northglass: 0, vesper: 0 },
-        stockPriceTimer: parsed.stockPriceTimer ?? 30,
+        labName: parsed.labName || DEFAULT_LAB_NAME,
+        products: parsed.products ?? {
+          chat: 0,
+          api: 0,
+          code: 0,
+          enterprise: 0,
+          mobile: 0,
+          science: 0,
+          robots: 0,
+        },
+        rivals: Array.isArray(parsed.rivals) && parsed.rivals.length > 0 ? parsed.rivals : createInitialRivals(),
+        stocks: parsed.stocks ?? { helix: 0, northglass: 0, vesper: 0, pebble: 0 },
         fundingTaken: parsed.fundingTaken ?? {},
-        marketingActiveSeconds: parsed.marketingActiveSeconds ?? 0,
-        marketingCooldownSeconds: parsed.marketingCooldownSeconds ?? 0,
-        payrollTight: parsed.payrollTight ?? false,
-        researchOwned: parsed.researchOwned ?? {},
-
-        // Events
-        eventCooldownTimer: parsed.eventCooldownTimer ?? 90,
-        eventRollTimer: parsed.eventRollTimer ?? 60,
-        pendingEvent: parsed.pendingEvent ?? null,
-        activeTimedEvents: Array.isArray(parsed.activeTimedEvents) ? parsed.activeTimedEvents : [],
-        eventLogs: Array.isArray(parsed.eventLogs) ? parsed.eventLogs : [],
-
-        // Achievements
-        achievements: parsed.achievements ?? {},
-        timesPrestiged: parsed.timesPrestiged ?? 0,
-        allTimeBestScore: parsed.allTimeBestScore ?? 0,
-
-        // Tutorial: existing saves not forced back into tutorial
-        tutorialStep: parsed.tutorialStep ?? 6,
-        tutorialDone: parsed.tutorialDone !== undefined ? parsed.tutorialDone : true,
-
-        // Settings (Phase 8)
+        people: parsed.people ?? { engineers: 0, sales: 0, researchers: 0 },
+        gpuClusters: parsed.gpuClusters ?? 0,
+        buildings: parsed.buildings ?? 0,
+        lastTickTime: Date.now(),
         soundEnabled: parsed.soundEnabled ?? true,
         reduceMotion: parsed.reduceMotion ?? false,
+        achievements: parsed.achievements ?? {},
+        tutorialDone: parsed.tutorialDone !== undefined ? parsed.tutorialDone : true,
+        eventLogs: Array.isArray(parsed.eventLogs) ? parsed.eventLogs : [],
       } as GameState;
     }
   } catch {
@@ -245,44 +154,61 @@ export function loadGameState(storage?: StorageLike | null): LoadResult {
   const store = storage !== undefined ? storage : getDefaultStorage();
   if (!store) {
     return {
-      state: createInitialState(),
+      state: createInitialState(true),
       loadedFromBackup: false,
       corrupted: false,
     };
   }
 
+  // 1. Check v2 main key
   const rawMain = store.getItem(SAVE_KEY);
   if (rawMain) {
-    const mainParsed = parseState(rawMain);
+    const mainParsed = parseV2State(rawMain);
     if (mainParsed) {
       return {
-        state: {
-          ...mainParsed,
-          lastTickTime: Date.now(),
-        },
+        state: mainParsed,
         loadedFromBackup: false,
         corrupted: false,
       };
     }
   }
 
+  // 2. Check v2 backup key
   const rawBackup = store.getItem(BACKUP_SAVE_KEY);
   if (rawBackup) {
-    const backupParsed = parseState(rawBackup);
+    const backupParsed = parseV2State(rawBackup);
     if (backupParsed) {
       return {
-        state: {
-          ...backupParsed,
-          lastTickTime: Date.now(),
-        },
+        state: backupParsed,
         loadedFromBackup: true,
         corrupted: rawMain !== null,
       };
     }
   }
 
+  // 3. Check if v1 save exists -> copy untouched to modelfoundry.save.v1.backup and start fresh v2 game
+  const rawV1 = store.getItem(SAVE_V1_KEY);
+  if (rawV1) {
+    try {
+      store.setItem(BACKUP_V1_KEY, rawV1);
+    } catch {
+      // ignore backup error
+    }
+    const freshState = createInitialState(true);
+    saveGameState(freshState, store);
+    return {
+      state: freshState,
+      loadedFromBackup: false,
+      corrupted: false,
+      migratedFromV1: true,
+    };
+  }
+
+  // 4. Default fresh start
+  const fresh = createInitialState(true);
+  saveGameState(fresh, store);
   return {
-    state: createInitialState(),
+    state: fresh,
     loadedFromBackup: false,
     corrupted: rawMain !== null,
   };

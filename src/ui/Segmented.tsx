@@ -1,7 +1,8 @@
 import React from 'react';
 
 export interface SegmentedOption<T extends string = string> {
-  id: T;
+  id?: T;
+  value?: T;
   label: string;
 }
 
@@ -34,14 +35,16 @@ export function Segmented<T extends string = string>({
       }}
     >
       {options.map((opt, index) => {
-        const isActive = opt.id === value;
+        const optKey = (opt.id ?? opt.value) as T;
+        const isActive = optKey === value;
+
         return (
           <button
-            key={opt.id}
+            key={optKey}
             type="button"
             role="tab"
             aria-selected={isActive}
-            onClick={() => onChange(opt.id)}
+            onClick={() => onChange(optKey)}
             style={{
               flex: 1,
               height: '100%',
@@ -49,19 +52,19 @@ export function Segmented<T extends string = string>({
               borderLeft: index > 0 ? '1px solid var(--border)' : 'none',
               background: isActive ? 'var(--surface-2)' : 'transparent',
               color: isActive ? 'var(--text)' : 'var(--text-tertiary)',
-              fontWeight: isActive ? 600 : 500,
+              fontFamily: 'var(--font)',
               fontSize: '13px',
-              lineHeight: '18px',
+              fontWeight: isActive ? 600 : 500,
               cursor: 'pointer',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '0 8px',
+              boxShadow: 'none',
+              textShadow: 'none',
               outline: 'none',
-              transition: 'background var(--duration) var(--ease), color var(--duration) var(--ease)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              WebkitTapHighlightColor: 'transparent',
+              transition: 'background-color var(--duration) var(--ease), color var(--duration) var(--ease)',
             }}
           >
             {opt.label}
@@ -71,3 +74,5 @@ export function Segmented<T extends string = string>({
     </div>
   );
 }
+
+export default Segmented;

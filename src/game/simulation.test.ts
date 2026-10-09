@@ -2,119 +2,196 @@ import { describe, it, expect } from 'vitest';
 import { createInitialState } from './save';
 import {
   stepGame,
+  tapEarn,
   startTraining,
+  boostTraining,
   launchModel,
-  canTrainModel,
-  buyGpu,
+  buyProductLevel,
+  hireEngineer,
+  hireSales,
   hireResearcher,
-  canBuyResearchNode,
-  buyResearchNode,
-  calculateMarket,
-  resolveEvent,
-  getGpuPrice,
-  getResearcherPrice,
-  getModelUnlockStatus,
+  buyGpuCluster,
+  calculateTotalIncomePerSec,
 } from './logic';
-import { RESEARCH_NODES, RESEARCH_NODE_ORDER } from './balance';
-import type { ModelSizeId, ResearchNodeId } from './types';
+import {
+  CLAUDE_LADDER,
+  PRODUCTS,
+  PRODUCT_ORDER,
+  getProductNextCost,
+  getModelCost,
+  getEngineerCost,
+  getSalesCost,
+  getResearcherCost,
+  getGpuClusterCost,
+} from './balance';
 
-describe('Phase 10: 30-Minute Decent Player Balance Simulation', () => {
-  it('runs a decent player for 30 minutes (1800s) and meets all targets', () => {
-    let state = createInitialState('Decent Lab', true);
-    state.tutorialDone = true;
+describe('AdVenture Capitalist / Egg Inc. 60-Minute Scripted Simulation', () => {
+  it('meets all balance and pacing milestones over 60 minutes', () => {
+    let state = createInitialState(false);
 
-    const SIZES_REVERSE: ModelSizeId[] = ['frontier', 'huge', 'large', 'medium', 'small', 'tiny'];
+    let firstPurchaseSecond: number | null = null;
+    let claude2LaunchSecond: number | null = null;
+    let claude3OpusLaunchSecond: number | null = null;
+    let incomeAt10Min = 0;
 
-    let gpusBoughtCount = 0;
-    const initialGpus = state.gpus;
+    let currentStretchNothingAffordable = 0;
+    let maxStretchNothingAffordableInFirst10Min = 0;
 
-    // Simulate 30 minutes (1800 seconds) in 1-second steps
-    for (let second = 1; second <= 1800; second++) {
-      // 1. Step simulation by 1 second
-      const stepRes = stepGame(state, 1);
-      state = stepRes.state;
-
-      // Auto-resolve pending event if any
-      if (state.pendingEvent) {
-        state = resolveEvent(state, 0);
+    for (let second = 0; second <= 3600; second++) {
+      // 1. First 2 minutes: tap earn 3x/s and boost 3x/s
+      if (second <= 120) {
+        for (let t = 0; t < 3; t++) {
+          state = tapEarn(state).state;
+        }
+        for (let b = 0; b < 3; b++) {
+          state = boostTraining(state);
+        }
       }
 
-      // 2. Launch when training finishes
-      if (state.readyModel) {
-        state = launchModel(state);
+      // 2. Launch immediately if ready
+      if (state.readyStep !== null) {
+        const { state: nextState } = launchModel(state);
+        state = nextState;
+        if (state.modelStep >= 2 && claude2LaunchSecond === null) {
+          claude2LaunchSecond = second;
+        }
+        if (state.modelStep >= 6 && claude3OpusLaunchSecond === null) {
+          claude3OpusLaunchSecond = second;
+        }
       }
 
-      // 3. Always trains the best size they can afford and have unlocked
-      if (!state.currentTraining && !state.readyModel) {
-        for (const size of SIZES_REVERSE) {
-          if (canTrainModel(size, state).canTrain) {
-            state = startTraining(state, size);
-            break;
+      // 3. Identify all available things to buy and their costs
+      interface PurchaseCandidate {
+        name: string;
+        cost: number;
+        execute: () => void;
+      }
+
+      const candidates: PurchaseCandidate[] = [];
+
+      // Next model training
+      if (!state.training && state.readyStep === null) {
+        const nextK = state.modelStep + 1;
+        if (nextK < CLAUDE_LADDER.length) {
+          candidates.push({
+            name: `Train ${CLAUDE_LADDER[nextK]}`,
+            cost: getModelCost(nextK),
+            execute: () => {
+              state = startTraining(state);
+            },
+          });
+        }
+      }
+
+      // Product levels
+      for (const pid of PRODUCT_ORDER) {
+        if (state.modelStep >= PRODUCTS[pid].unlockStep) {
+          const lvl = state.products[pid] ?? 0;
+          candidates.push({
+            name: `${PRODUCTS[pid].name} lv ${lvl + 1}`,
+            cost: getProductNextCost(pid, lvl),
+            execute: () => {
+              state = buyProductLevel(state, pid);
+            },
+          });
+        }
+      }
+
+      // Team & Clusters
+      candidates.push({
+        name: 'Engineer',
+        cost: getEngineerCost(state.people.engineers),
+        execute: () => {
+          state = hireEngineer(state);
+        },
+      });
+      candidates.push({
+        name: 'Sales',
+        cost: getSalesCost(state.people.sales),
+        execute: () => {
+          state = hireSales(state);
+        },
+      });
+      candidates.push({
+        name: 'Researcher',
+        cost: getResearcherCost(state.people.researchers),
+        execute: () => {
+          state = hireResearcher(state);
+        },
+      });
+      candidates.push({
+        name: 'GPU Cluster',
+        cost: getGpuClusterCost(state.gpuClusters),
+        execute: () => {
+          state = buyGpuCluster(state);
+        },
+      });
+
+      // Filter affordable
+      const affordable = candidates.filter((c) => c.cost <= state.cash);
+
+      // Track stretch with nothing affordable in the first 10 minutes (0 to 600s)
+      if (second <= 600) {
+        if (affordable.length === 0) {
+          currentStretchNothingAffordable++;
+          if (currentStretchNothingAffordable > maxStretchNothingAffordableInFirst10Min) {
+            maxStretchNothingAffordableInFirst10Min = currentStretchNothingAffordable;
           }
+        } else {
+          currentStretchNothingAffordable = 0;
         }
       }
 
-      // 4. Buys a GPU when they can afford it and have under 8
-      if (state.gpus < 8 && state.cash >= getGpuPrice(state.gpus)) {
-        state = buyGpu(state);
-        if (state.gpus > initialGpus + gpusBoughtCount) {
-          gpusBoughtCount++;
+      // Buy cheapest affordable thing
+      if (affordable.length > 0) {
+        affordable.sort((a, b) => a.cost - b.cost);
+        affordable[0].execute();
+        if (firstPurchaseSecond === null) {
+          firstPurchaseSecond = second;
         }
       }
 
-      // 5. Hires when they can afford it and have under 4 researchers
-      if (state.researchers < 4 && state.cash >= getResearcherPrice(state.researchers)) {
-        state = hireResearcher(state);
+      // Record 10-minute snapshot
+      if (second === 600) {
+        incomeAt10Min = calculateTotalIncomePerSec(state);
       }
 
-      // 6. Buys the cheapest research they can afford
-      const availableNodes: { id: ResearchNodeId; cost: number }[] = [];
-      for (const nodeId of RESEARCH_NODE_ORDER) {
-        if (!state.researchOwned?.[nodeId]) {
-          const check = canBuyResearchNode(nodeId, state);
-          if (check.canBuy) {
-            availableNodes.push({ id: nodeId, cost: RESEARCH_NODES[nodeId].cost });
-          }
-        }
-      }
-      if (availableNodes.length > 0) {
-        availableNodes.sort((a, b) => a.cost - b.cost);
-        state = buyResearchNode(state, availableNodes[0].id);
+      if (second > 0 && second % 600 === 0) {
+        const inc = calculateTotalIncomePerSec(state);
+        console.log(
+          `[t=${second}s / ${(second / 60).toFixed(0)}m] Cash: $${state.cash.toFixed(0)} | Income: $${inc.toFixed(1)}/s | Model: ${
+            state.modelStep >= 0 ? CLAUDE_LADDER[state.modelStep] : 'None'
+          } (step ${state.modelStep}) | Chat: lv ${state.products.chat}`
+        );
       }
 
-      if (second % 300 === 0) {
-        const m = calculateMarket(state);
-        console.log(`[t=${second}s] Cash: $${state.cash.toFixed(0)} | Models: ${state.launchedModels.length} | Best: ${state.bestLaunchedModel?.score ?? 0} | Share: ${(m.playerShare * 100).toFixed(1)}% | Training: ${state.currentTraining?.sizeId ?? 'none'}`);
-      }
+      // 4. Step 1s of simulation
+      state = stepGame(state, 1).state;
     }
 
-    const market = calculateMarket(state);
-    const frontierUnlocked = getModelUnlockStatus('frontier', state).unlocked;
+    console.log('=== Simulation Results ===');
+    console.log(`First purchase second: ${firstPurchaseSecond}`);
+    console.log(`Max stretch with nothing affordable in first 10m: ${maxStretchNothingAffordableInFirst10Min}s`);
+    console.log(`Claude 2 launched at: ${claude2LaunchSecond}s (${(claude2LaunchSecond! / 60).toFixed(1)}m)`);
+    console.log(`Claude 3 Opus launched at: ${claude3OpusLaunchSecond}s (${(claude3OpusLaunchSecond! / 60).toFixed(1)}m)`);
+    console.log(`Final model: ${CLAUDE_LADDER[state.modelStep]} (step ${state.modelStep})`);
+    console.log(`Income at 10m: $${incomeAt10Min.toFixed(2)}/s`);
 
-    console.log('=== Simulation Results After 30 Minutes ===');
-    console.log(`Cash: $${state.cash.toFixed(2)}`);
-    console.log(`Launched Models: ${state.launchedModels.length}`);
-    console.log(`Market Share: ${(market.playerShare * 100).toFixed(1)}%`);
-    console.log(`GPUs Owned: ${state.gpus} (Bought: ${gpusBoughtCount})`);
-    console.log(`Researchers: ${state.researchers}`);
-    console.log(`Frontier Unlocked: ${frontierUnlocked}`);
-    console.log(`Best Launched Score: ${state.bestLaunchedModel?.score ?? 0}`);
+    // Assertions
+    expect(firstPurchaseSecond).not.toBeNull();
+    expect(firstPurchaseSecond).toBeLessThanOrEqual(1);
 
-    // Assert targets from Phase 10:
-    // 1. Still has cash above 0
-    expect(state.cash).toBeGreaterThan(0);
+    expect(maxStretchNothingAffordableInFirst10Min).toBeLessThanOrEqual(30);
 
-    // 2. Has launched at least 3 models
-    expect(state.launchedModels.length).toBeGreaterThanOrEqual(3);
+    expect(claude2LaunchSecond).not.toBeNull();
+    expect(claude2LaunchSecond!).toBeLessThanOrEqual(150); // 2:30
 
-    // 3. Has a market share between 10% and 70% at the end
-    expect(market.playerShare).toBeGreaterThanOrEqual(0.10);
-    expect(market.playerShare).toBeLessThanOrEqual(0.70);
+    expect(claude3OpusLaunchSecond).not.toBeNull();
+    expect(claude3OpusLaunchSecond!).toBeLessThanOrEqual(720); // 12:00
 
-    // 4. Can afford a GPU at least once
-    expect(gpusBoughtCount).toBeGreaterThanOrEqual(1);
+    expect(state.modelStep).toBeLessThanOrEqual(15); // not past Claude Opus 4.5 (index 15)
 
-    // 5. Has not already unlocked Frontier
-    expect(frontierUnlocked).toBe(false);
+    expect(incomeAt10Min).toBeGreaterThanOrEqual(100);
+    expect(incomeAt10Min).toBeLessThanOrEqual(10000);
   });
 });

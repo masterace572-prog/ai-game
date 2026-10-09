@@ -1,68 +1,80 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Users,
-  Play,
-  ArrowUpRight,
-  ChevronLeft,
-  Cpu,
-  Database,
-  DollarSign,
+  MessageSquare,
+  Plug,
+  Code,
+  Building2,
+  Smartphone,
+  Atom,
+  Bot,
   Zap,
+  Target,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  TrendingUp,
   Sparkles,
+  ChevronLeft,
 } from 'lucide-react';
 import { Icon } from './ui/Icon';
 import { Button } from './ui/Button';
-import { GameRow } from './ui/GameRow';
 import { TopBar } from './ui/TopBar';
 import { BottomNav, type NavTabId } from './ui/BottomNav';
 import { ProgressBar } from './ui/ProgressBar';
 import { Modal } from './ui/Modal';
+import { OfflineModal } from './ui/OfflineModal';
 import { ModelsScreen } from './ui/ModelsScreen';
-import { MarketScreen } from './ui/MarketScreen';
+import { ShopScreen } from './ui/ShopScreen';
 import { InvestScreen } from './ui/InvestScreen';
-import { TeamScreen } from './ui/TeamScreen';
-import { ResearchScreen } from './ui/ResearchScreen';
 import { EventsLogScreen } from './ui/EventsLogScreen';
 import { AchievementsScreen } from './ui/AchievementsScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { NewEraScreen } from './ui/NewEraScreen';
 import { MoreScreen } from './ui/MoreScreen';
-import { EventModal } from './ui/EventModal';
-import { TutorialOverlay } from './ui/TutorialOverlay';
 import { Toast } from './ui/Toast';
-import { OfflineModal } from './ui/OfflineModal';
 import { loadGameState, saveGameState, createInitialState } from './game/save';
 import { playTap, playLaunch, playEvent } from './ui/audio';
-import { formatMoney, formatRate } from './ui/format';
+import { formatMoney, formatCost, formatRate } from './ui/format';
 import {
   stepGame,
+  tapEarn,
   startTraining,
+  boostTraining,
   launchModel,
-  getUsableGpus,
-  getEffectivePowerCap,
-  getIncomePerSec,
-  buyGpu,
+  buyProductLevel,
+  hireEngineer,
+  hireSales,
   hireResearcher,
-  buyCooling,
-  buyOfficeSnacks,
-  upgradeDataQuality,
-  buyDataCenter,
+  buyGpuCluster,
+  buyBuilding,
   takeFunding,
   buyStock,
   sellStock,
-  startMarketingCampaign,
-  buyResearchNode,
-  resolveEvent,
+  calculateTotalIncomePerSec,
+  getCheapestNextGoal,
   simulateOfflineCatchUp,
-  prestigeNewEra,
   type OfflineReport,
 } from './game/logic';
 import {
-  DEFAULT_LAB_NAME,
-  ACHIEVEMENTS,
+  CLAUDE_LADDER,
+  PRODUCTS,
+  PRODUCT_ORDER,
+  getModelCost,
+  getModelBaseSeconds,
+  getProductNextCost,
+  getProductIncomePerSec,
+  getNextProductMilestone,
+  getTrainingSpeed,
 } from './game/balance';
-import type { GameState, ModelSizeId, FundingRoundId, ResearchNodeId, AchievementId } from './game/types';
+import type { GameState, ProductId } from './game/types';
 import './styles.css';
+
+interface TapFloater {
+  id: number;
+  x: number;
+  y: number;
+  amount: string;
+}
 
 export const App: React.FC = () => {
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(null);
@@ -76,12 +88,19 @@ export const App: React.FC = () => {
     return nextState;
   });
 
-  const [activeTab, setActiveTab] = useState<NavTabId | 'team' | 'research' | 'events' | 'achievements' | 'settings' | 'new-era'>('lab');
-  const [tempLabName, setTempLabName] = useState(gameState.labName || DEFAULT_LAB_NAME);
+  const [activeTab, setActiveTab] = useState<
+    NavTabId | 'events' | 'achievements' | 'settings' | 'new-era'
+  >('lab');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [lockedProductsOpen, setLockedProductsOpen] = useState(false);
+  const [floaters, setFloaters] = useState<TapFloater[]>([]);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
+
+  // Rate limiting refs
+  const lastHeroTapRef = useRef<number>(0);
+  const lastBoostTapRef = useRef<number>(0);
 
   // Sync reduce-motion attribute to document body
   useEffect(() => {
@@ -97,7 +116,7 @@ export const App: React.FC = () => {
     lastSaveTimeRef.current = Date.now();
   }, []);
 
-  // Live timer: ~4 ticks a second (250ms)
+  // Live timer: 4 ticks a second (250ms)
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -111,38 +130,25 @@ export const App: React.FC = () => {
         lastTickTimeRef.current = now;
 
         setGameState((prevState) => {
-          const { state: nextState, modelFinished, newlyUnlockedAchievements } = stepGame(prevState, deltaSeconds);
+          const { state: nextState, events } = stepGame(
+            prevState,
+            deltaSeconds
+          );
 
-          if (newlyUnlockedAchievements && newlyUnlockedAchievements.length > 0) {
-            const firstId: AchievementId = newlyUnlockedAchievements[0];
-            const def = ACHIEVEMENTS[firstId];
-            if (def) {
-              setToastMessage(`Achievement Unlocked: ${def.name} (${def.bonusText})`);
-              playEvent(nextState.soundEnabled ?? true);
-            }
-          }
-
-          if (!prevState.pendingEvent && nextState.pendingEvent) {
+          const modelFinished = events?.some((e) => e.type === 'ready');
+          if (modelFinished) {
+            setToastMessage('Training complete! Model is ready to launch.');
             playEvent(nextState.soundEnabled ?? true);
-          }
-
-          // Auto-advance tutorial if model finished during step 3
-          let finalState = nextState;
-          if (modelFinished && !finalState.tutorialDone && finalState.tutorialStep === 3) {
-            finalState = {
-              ...finalState,
-              tutorialStep: 4,
-            };
           }
 
           // Auto-save every 5 seconds or immediately when model finishes
           const timeSinceSave = now - lastSaveTimeRef.current;
           if (modelFinished || timeSinceSave >= 5000) {
-            saveGameState(finalState);
+            saveGameState(nextState);
             lastSaveTimeRef.current = now;
           }
 
-          return finalState;
+          return nextState;
         });
       }, 250);
     };
@@ -154,10 +160,8 @@ export const App: React.FC = () => {
       }
     };
 
-    // Start timer on mount
     startTimer();
 
-    // Listen for visibility change
     const handleVisibilityChange = () => {
       if (document.hidden) {
         stopTimer();
@@ -190,108 +194,148 @@ export const App: React.FC = () => {
     };
   }, [triggerSave]);
 
-  // Actions
-  const handleConfirmLabName = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalName = tempLabName.trim() || DEFAULT_LAB_NAME;
-    const nextState: GameState = {
-      ...gameStateRef.current,
-      labName: finalName,
-      labNameConfirmed: true,
-      tutorialStep: Math.max(2, gameStateRef.current.tutorialStep ?? 1),
-    };
+  // Tap-to-earn handler (rate limited to max 10 taps/sec = 100ms)
+  const handleHeroTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    const now = Date.now();
+    if (now - lastHeroTapRef.current < 90) return; // 10 taps/sec max
+    lastHeroTapRef.current = now;
+
+    const { state: nextState, earned } = tapEarn(gameStateRef.current);
     setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+
+    // Floating animation
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const floaterId = now + Math.random();
+
+    setFloaters((prev) => [
+      ...prev,
+      { id: floaterId, x, y, amount: `+${formatCost(earned)}` },
+    ]);
+
+    setTimeout(() => {
+      setFloaters((prev) => prev.filter((f) => f.id !== floaterId));
+    }, 750);
+  };
+
+  // Boost training handler (rate limited to max 8 taps/sec = 125ms)
+  const handleBoost = () => {
+    const now = Date.now();
+    if (now - lastBoostTapRef.current < 115) return; // 8 taps/sec max
+    lastBoostTapRef.current = now;
+
+    if (!gameState.training) return;
+    const nextState = boostTraining(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  // Start training
+  const handleStartTraining = () => {
+    const nextState = startTraining(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
     triggerSave(nextState);
+    playTap(nextState.soundEnabled ?? true);
   };
 
-  const handleTrainModel = (sizeId: ModelSizeId) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    let nextState = startTraining(gameStateRef.current, sizeId);
-    if (nextState !== gameStateRef.current) {
-      if (!nextState.tutorialDone && nextState.tutorialStep === 2) {
-        nextState = {
-          ...nextState,
-          tutorialStep: 3,
-        };
-      }
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
+  // Launch model
   const handleLaunch = () => {
-    playLaunch(gameStateRef.current.soundEnabled ?? true);
-    let nextState = launchModel(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      if (!nextState.tutorialDone && nextState.tutorialStep === 4) {
-        nextState = {
-          ...nextState,
-          tutorialStep: 5,
-        };
-      }
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
-  const handleResolveEvent = (choiceIndex: 0 | 1) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = resolveEvent(gameStateRef.current, choiceIndex);
+    const { state: nextState, launchedName } = launchModel(gameStateRef.current);
     setGameState(nextState);
+    gameStateRef.current = nextState;
     triggerSave(nextState);
+    playLaunch(nextState.soundEnabled ?? true);
+    setToastMessage(`Launched ${launchedName}! Multiplier boosted.`);
   };
 
-  const handleTutorialNext = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const currentStep = gameState.tutorialStep ?? 1;
-    if (currentStep >= 6) {
-      const nextState: GameState = {
-        ...gameStateRef.current,
-        tutorialDone: true,
-      };
-      setGameState(nextState);
-      triggerSave(nextState);
-    } else {
-      const nextStep = currentStep + 1;
-      if (nextStep === 5) {
-        setActiveTab('market');
-      } else if (nextStep === 6) {
-        setActiveTab('team');
-      }
-      const nextState: GameState = {
-        ...gameStateRef.current,
-        tutorialStep: nextStep,
-      };
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
-  const handleTutorialSkip = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState: GameState = {
-      ...gameStateRef.current,
-      tutorialDone: true,
-    };
+  // Buy product level
+  const handleBuyProduct = (productId: ProductId) => {
+    const nextState = buyProductLevel(gameStateRef.current, productId);
     setGameState(nextState);
-    triggerSave(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
   };
 
-  // Settings Handlers
+  // Team hires
+  const handleHireEngineer = () => {
+    const nextState = hireEngineer(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleHireSales = () => {
+    const nextState = hireSales(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleHireResearcher = () => {
+    const nextState = hireResearcher(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleBuyGpuCluster = () => {
+    const nextState = buyGpuCluster(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleBuyBuilding = () => {
+    const nextState = buyBuilding(gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  // Funding
+  const handleTakeFunding = (fundingId: string) => {
+    const nextState = takeFunding(fundingId, gameStateRef.current);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    triggerSave(nextState);
+    playLaunch(nextState.soundEnabled ?? true);
+    setToastMessage(`Funding round secured! Revenue permanently boosted.`);
+  };
+
+  // Stocks
+  const handleBuyStock = (rivalId: string, count: number) => {
+    const nextState = buyStock(gameStateRef.current, rivalId, count);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  const handleSellStock = (rivalId: string, count: number) => {
+    const nextState = sellStock(gameStateRef.current, rivalId, count);
+    setGameState(nextState);
+    gameStateRef.current = nextState;
+    playTap(nextState.soundEnabled ?? true);
+  };
+
+  // Settings handlers
   const handleToggleSound = () => {
     const nextState: GameState = {
       ...gameStateRef.current,
-      soundEnabled: !(gameStateRef.current.soundEnabled ?? true),
+      soundEnabled: !gameStateRef.current.soundEnabled,
     };
     setGameState(nextState);
     triggerSave(nextState);
   };
 
   const handleToggleReduceMotion = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
     const nextState: GameState = {
       ...gameStateRef.current,
-      reduceMotion: !(gameStateRef.current.reduceMotion ?? false),
+      reduceMotion: !gameStateRef.current.reduceMotion,
     };
     setGameState(nextState);
     triggerSave(nextState);
@@ -300,11 +344,11 @@ export const App: React.FC = () => {
   const handleImportSave = (jsonText: string): boolean => {
     try {
       const parsed = JSON.parse(jsonText);
-      if (!parsed || parsed.version !== 1 || typeof parsed.cash !== 'number') {
-        return false;
-      }
-      setGameState(parsed);
-      triggerSave(parsed);
+      if (typeof parsed !== 'object' || parsed === null) return false;
+      const clean = createInitialState(false);
+      const nextState: GameState = { ...clean, ...parsed, version: 2 };
+      setGameState(nextState);
+      triggerSave(nextState);
       return true;
     } catch {
       return false;
@@ -312,471 +356,504 @@ export const App: React.FC = () => {
   };
 
   const handleWipeSave = () => {
-    const fresh = createInitialState(DEFAULT_LAB_NAME, false);
+    const fresh = createInitialState(false);
     setGameState(fresh);
     triggerSave(fresh);
-    setActiveTab('lab');
   };
 
-  const handlePrestige = () => {
-    playLaunch(gameStateRef.current.soundEnabled ?? true);
-    const nextState = prestigeNewEra(gameStateRef.current);
+  const handleDismissFreshStartSheet = () => {
+    const nextState: GameState = {
+      ...gameStateRef.current,
+      showFreshStartSheet: false,
+    };
     setGameState(nextState);
     triggerSave(nextState);
-    setActiveTab('lab');
-    setToastMessage(`Era ${nextState.era} Begun! Gained permanent Era Points.`);
   };
 
-  // Economy Actions
-  const handleBuyGpu = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyGpu(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Bought GPU');
+  const incomePerSec = calculateTotalIncomePerSec(gameState);
+  const trainingSpeed = getTrainingSpeed(gameState.people.engineers, gameState.gpuClusters);
+  const nextModelStep = gameState.modelStep + 1;
+  const nextModelName = CLAUDE_LADDER[nextModelStep] ?? 'Max Tier Reached';
+  const nextModelCost = getModelCost(nextModelStep);
+  const nextModelSeconds = Math.round(getModelBaseSeconds(nextModelStep));
+
+  const unlockedProducts = PRODUCT_ORDER.filter(
+    (pid) => gameState.modelStep >= PRODUCTS[pid].unlockStep
+  );
+  const lockedProducts = PRODUCT_ORDER.filter(
+    (pid) => gameState.modelStep < PRODUCTS[pid].unlockStep
+  );
+
+  const getProductIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'MessageSquare':
+        return MessageSquare;
+      case 'Plug':
+        return Plug;
+      case 'Code':
+        return Code;
+      case 'Building2':
+        return Building2;
+      case 'Smartphone':
+        return Smartphone;
+      case 'Atom':
+        return Atom;
+      case 'Bot':
+        return Bot;
+      default:
+        return Zap;
     }
-  };
-
-  const handleHireResearcher = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = hireResearcher(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Hired');
-    }
-  };
-
-  const handleBuyCooling = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyCooling(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Bought Cooling');
-    }
-  };
-
-  const handleBuySnacks = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyOfficeSnacks(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Bought Snacks');
-    }
-  };
-
-  const handleUpgradeDataQuality = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = upgradeDataQuality(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Upgraded Data');
-    }
-  };
-
-  const handleBuyDataCenter = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyDataCenter(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Bought Building');
-    }
-  };
-
-  const handleTakeFunding = (roundId: FundingRoundId) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = takeFunding(roundId, gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      const roundLabel = roundId === 'seed' ? 'Took Seed' : roundId === 'series-a' ? 'Took Series A' : 'Took Series B';
-      setToastMessage(roundLabel);
-    }
-  };
-
-  const handleBuyStock = (rivalId: string, sharesCount: number) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyStock(gameStateRef.current, rivalId, sharesCount);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
-  const handleSellStock = (rivalId: string, sharesCount: number) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = sellStock(gameStateRef.current, rivalId, sharesCount);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
-  const handleStartMarketing = () => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = startMarketingCampaign(gameStateRef.current);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-    }
-  };
-
-  const handleBuyResearch = (nodeId: ResearchNodeId) => {
-    playTap(gameStateRef.current.soundEnabled ?? true);
-    const nextState = buyResearchNode(gameStateRef.current, nodeId);
-    if (nextState !== gameStateRef.current) {
-      setGameState(nextState);
-      triggerSave(nextState);
-      setToastMessage('Researched');
-    }
-  };
-
-  // Real market revenue & net income
-  const { income: netIncome } = getIncomePerSec(gameState);
-
-  // Derived values for Lab tab
-  const usableGpus = getUsableGpus(gameState.gpus, gameState.powerCap);
-  const effectivePowerCap = getEffectivePowerCap(gameState);
-
-  // Cash display count-up hook (300ms, snaps if reduce motion)
-  const [displayCash, setDisplayCash] = useState(gameState.cash);
-  const displayCashRef = useRef(displayCash);
-  displayCashRef.current = displayCash;
-
-  useEffect(() => {
-    if (gameState.reduceMotion) {
-      setDisplayCash(gameState.cash);
-      return;
-    }
-    const startVal = displayCashRef.current;
-    const endVal = gameState.cash;
-    if (Math.abs(startVal - endVal) < 0.05) {
-      setDisplayCash(endVal);
-      return;
-    }
-
-    const duration = 300;
-    const startTime = performance.now();
-    let animId: number;
-
-    const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - progress, 2);
-      const val = startVal + (endVal - startVal) * eased;
-      setDisplayCash(val);
-      if (progress < 1) {
-        animId = requestAnimationFrame(tick);
-      } else {
-        setDisplayCash(endVal);
-      }
-    };
-
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, [gameState.cash, gameState.reduceMotion]);
-
-  const getNextGoal = (state: GameState): string => {
-    if (!state.fundingTaken?.['series-a']) {
-      return 'Next: score 80 · Series A';
-    }
-    if (!state.fundingTaken?.['series-b']) {
-      return 'Next: score 220 · Series B';
-    }
-    if (!state.researchOwned?.['agent-harness']) {
-      return 'Next: Agent harness';
-    }
-    if ((state.eraPoints ?? 0) === 0 && (state.era || 1) === 1) {
-      return 'Next: score 250 · New Era';
-    }
-    return 'Next: score 250 · New Era';
   };
 
   return (
-    <div className="app-shell">
-      {/* Top Bar */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        width: '100%',
+        maxWidth: '480px',
+        margin: '0 auto',
+        backgroundColor: 'var(--bg)',
+        color: 'var(--text)',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
       <TopBar
-        labName={gameState.labName}
         cash={gameState.cash}
-        incomePerSec={netIncome}
+        ratePerSec={incomePerSec}
+        labName={gameState.labName || 'Claude'}
         soundEnabled={gameState.soundEnabled ?? true}
         onToggleSound={handleToggleSound}
       />
 
-      {/* Main Content Area */}
-      <main className="main-content">
+      <main
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {/* TAB 1: LAB */}
         {activeTab === 'lab' && (
-          <div
-            className="tab-pane"
-            style={{
-              padding: '16px',
-              paddingBottom: '88px',
-              maxWidth: '480px',
-              margin: '0 auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '24px',
-            }}
-          >
-            {/* Cash Hero Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', padding: 'var(--space-4)' }}>
+            {/* HERO CARD: Tap-to-earn */}
             <div
+              onClick={handleHeroTap}
               style={{
-                padding: '20px',
-                borderRadius: '16px',
-                background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--brand-claude) 22%, var(--surface)) 0%, var(--surface) 100%)',
+                position: 'relative',
+                backgroundColor: 'var(--surface)',
                 border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-5)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 'var(--space-1)',
+                cursor: 'pointer',
+                userSelect: 'none',
+                WebkitTapHighlightColor: 'transparent',
+                boxShadow: 'var(--shadow-sm)',
+                overflow: 'hidden',
               }}
             >
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                Treasury
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Claude Treasury
               </span>
-              <div
-                style={{
-                  fontSize: '40px',
-                  lineHeight: '44px',
-                  fontWeight: 800,
-                  color: 'var(--text)',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                {formatMoney(displayCash)}
+              <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em', margin: '2px 0' }}>
+                {formatMoney(gameState.cash)}
               </div>
-              <div
-                style={{
-                  fontSize: '15px',
-                  lineHeight: '20px',
-                  fontWeight: 600,
-                  color: netIncome >= 0 ? 'var(--money)' : 'var(--danger)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {formatRate(netIncome)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', fontWeight: 600, color: 'var(--success)' }}>
+                <TrendingUp size={16} />
+                <span>{formatRate(incomePerSec)}</span>
               </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: 'var(--space-2)' }}>
+                Tap card to earn (+{formatCost(0.50 + 0.05 * incomePerSec)})
+              </span>
+
+              {/* Floating tap animations */}
+              {floaters.map((floater) => (
+                <div
+                  key={floater.id}
+                  style={{
+                    position: 'absolute',
+                    left: `${floater.x}px`,
+                    top: `${floater.y - 10}px`,
+                    color: 'var(--success)',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    pointerEvents: 'none',
+                    animation: 'floatUpFade 0.75s ease-out forwards',
+                  }}
+                >
+                  {floater.amount}
+                </div>
+              ))}
             </div>
 
-            {/* Goal Card */}
+            {/* GOAL CARD */}
             <div
               style={{
-                padding: '16px',
-                borderRadius: '16px',
-                background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--brand-claude) 22%, var(--surface)) 0%, var(--surface) 100%)',
+                backgroundColor: 'var(--surface)',
                 border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-3) var(--space-4)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
+                gap: 'var(--space-3)',
               }}
             >
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '12px',
-                  backgroundColor: 'var(--gold-tint)',
-                  color: 'var(--gold)',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--accent-subtle)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: 'var(--accent)',
                   flexShrink: 0,
                 }}
               >
-                <Sparkles size={20} strokeWidth={1.75} />
+                <Target size={18} />
               </div>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <span
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  Current Objective
-                </span>
-                <span
-                  style={{
-                    fontSize: '15px',
-                    lineHeight: '20px',
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                    marginTop: '2px',
-                  }}
-                >
-                  {getNextGoal(gameState)}
-                </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                  Next Target
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {getCheapestNextGoal(gameState)}
+                </div>
               </div>
             </div>
 
-            {/* Active Training Job or Ready to Launch */}
-            {gameState.currentTraining ? (
+            {/* TRAINING CARD */}
+            {gameState.training !== null ? (
               <div
                 style={{
-                  padding: '16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '16px',
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-4)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
+                  gap: 'var(--space-3)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--brand-claude)',
-                      }}
-                    />
-                    <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
-                      {gameState.currentTraining.proposedName}
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                      Training in Progress
                     </span>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
+                      {CLAUDE_LADDER[gameState.training.step]}
+                    </div>
                   </div>
-                  <span
-                    style={{
-                      fontSize: '13px',
-                      color: 'var(--text-secondary)',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {Math.max(
-                      0,
-                      gameState.currentTraining.totalSeconds -
-                        gameState.currentTraining.progressSeconds
-                    ).toFixed(0)}s left
-                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                      {Math.max(0, Math.ceil((gameState.training.total - gameState.training.progress) / trainingSpeed))}s left
+                    </span>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                      {trainingSpeed.toFixed(1)}x speed
+                    </div>
+                  </div>
                 </div>
+
                 <ProgressBar
-                  progress={
-                    gameState.currentTraining.progressSeconds /
-                    gameState.currentTraining.totalSeconds
-                  }
+                  value={gameState.training.progress}
+                  max={gameState.training.total}
                 />
+
+                <Button variant="secondary" fullWidth onClick={handleBoost}>
+                  <Zap size={16} style={{ marginRight: '6px' }} />
+                  Boost Training (Tap)
+                </Button>
               </div>
-            ) : gameState.readyModel ? (
+            ) : gameState.readyStep !== null ? (
               <div
                 style={{
-                  padding: '16px',
-                  background: 'var(--surface)',
+                  backgroundColor: 'var(--surface)',
+                  border: '2px solid var(--success)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-3)',
+                  boxShadow: 'var(--shadow-md)',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase' }}>
+                    Model Training Complete!
+                  </span>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text)' }}>
+                    {CLAUDE_LADDER[gameState.readyStep]} is Ready!
+                  </div>
+                </div>
+
+                <Button variant="primary" fullWidth onClick={handleLaunch}>
+                  <Sparkles size={16} style={{ marginRight: '6px' }} />
+                  Launch {CLAUDE_LADDER[gameState.readyStep]}
+                </Button>
+              </div>
+            ) : nextModelStep < CLAUDE_LADDER.length ? (
+              <div
+                style={{
+                  backgroundColor: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  borderRadius: '16px',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-4)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>
-                    {gameState.readyModel.name}
-                  </span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    Training complete · Ready to deploy
-                  </span>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                    Next Model
+                  </div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
+                    {nextModelName}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {formatCost(nextModelCost)} • ~{nextModelSeconds}s base
+                  </div>
                 </div>
+
                 <Button
                   variant="primary"
-                  onClick={handleLaunch}
-                  style={{ minHeight: '44px', padding: '0 16px' }}
+                  size="sm"
+                  disabled={gameState.cash < nextModelCost}
+                  onClick={handleStartTraining}
                 >
-                  <ArrowUpRight size={16} strokeWidth={1.75} />
-                  <span>Launch (Score {gameState.readyModel.score})</span>
+                  Start Training
                 </Button>
               </div>
             ) : null}
 
-            {/* Lab stats: Money, GPUs, Power, Researchers, Data Quality, Era */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
-              <GameRow
-                icon={DollarSign}
-                iconColor="var(--money)"
-                title="Money"
-                value={formatMoney(displayCash)}
-              />
-              <GameRow
-                icon={Cpu}
-                iconColor="var(--compute)"
-                title="GPUs"
-                value={`${usableGpus}/${gameState.gpus}`}
-              />
-              <GameRow
-                icon={Zap}
-                iconColor="var(--compute)"
-                title="Power"
-                value={`${effectivePowerCap} kW`}
-              />
-              <GameRow
-                icon={Users}
-                iconColor="var(--people)"
-                title="Researchers"
-                value={gameState.researchers}
-              />
-              <GameRow
-                icon={Database}
-                iconColor="var(--research)"
-                title="Data Quality"
-                value={`${gameState.dataQuality}/100`}
-              />
-              <GameRow
-                icon={Sparkles}
-                iconColor="var(--gold)"
-                title="Era"
-                value={`Era ${gameState.era ?? 1}`}
-              />
+            {/* PRODUCTS LIST */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Products & Services
+              </span>
+
+              {unlockedProducts.map((pid) => {
+                const def = PRODUCTS[pid];
+                const level = gameState.products[pid] ?? 0;
+                const cost = getProductNextCost(pid, level);
+                const income = getProductIncomePerSec(pid, level);
+                const milestone = getNextProductMilestone(level);
+                const canBuy = gameState.cash >= cost;
+                const IconComponent = getProductIcon(def.iconName);
+
+                // Progress to next milestone
+                let progressValue = 0;
+                let milestoneLabel = 'Max';
+                if (milestone) {
+                  progressValue = (level - milestone.prevLevel) / (milestone.nextLevel - milestone.prevLevel);
+                  milestoneLabel = `x${milestone.multiplier} at ${milestone.nextLevel}`;
+                }
+
+                return (
+                  <div
+                    key={pid}
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3) var(--space-4)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 'var(--space-2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <div
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: 'var(--accent-subtle)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--accent)',
+                          }}
+                        >
+                          <IconComponent size={18} />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: '14px' }}>
+                              {def.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                backgroundColor: 'var(--surface-active)',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              Lv {level}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: 500 }}>
+                            +{formatRate(income)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!canBuy}
+                        onClick={() => handleBuyProduct(pid)}
+                      >
+                        Buy {formatCost(cost)}
+                      </Button>
+                    </div>
+
+                    {/* Milestone progress bar row */}
+                    {milestone && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        <div style={{ flex: 1 }}>
+                          <ProgressBar value={progressValue} max={1} />
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', minWidth: '60px', textAlign: 'right' }}>
+                          {milestoneLabel}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* LOCKED PRODUCTS ACCORDION */}
+              {lockedProducts.length > 0 && (
+                <div style={{ marginTop: 'var(--space-2)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setLockedProductsOpen(!lockedProductsOpen)}
+                    style={{
+                      width: '100%',
+                      background: 'none',
+                      border: '1px dashed var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3) var(--space-4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      color: 'var(--text-secondary)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <Lock size={14} />
+                      <span>Locked Products ({lockedProducts.length})</span>
+                    </div>
+                    {lockedProductsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+
+                  {lockedProductsOpen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                      {lockedProducts.map((pid) => {
+                        const def = PRODUCTS[pid];
+                        const IconComponent = getProductIcon(def.iconName);
+
+                        return (
+                          <div
+                            key={pid}
+                            style={{
+                              backgroundColor: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)',
+                              padding: 'var(--space-3) var(--space-4)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              opacity: 0.6,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                              <IconComponent size={18} color="var(--text-tertiary)" />
+                              <div>
+                                <div style={{ fontWeight: 500, color: 'var(--text)', fontSize: '13px' }}>
+                                  {def.name}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                                  Unlocks with {def.unlockModelName}
+                                </div>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                              Locked
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* TAB 2: MODELS */}
         {activeTab === 'models' && (
           <ModelsScreen
             gameState={gameState}
-            onTrainModel={handleTrainModel}
+            onStartTraining={handleStartTraining}
             onLaunchModel={handleLaunch}
           />
         )}
 
-        {activeTab === 'market' && (
-          <MarketScreen gameState={gameState} />
+        {/* TAB 3: SHOP */}
+        {activeTab === 'shop' && (
+          <ShopScreen
+            gameState={gameState}
+            onHireEngineer={handleHireEngineer}
+            onHireSales={handleHireSales}
+            onHireResearcher={handleHireResearcher}
+            onBuyGpuCluster={handleBuyGpuCluster}
+            onBuyBuilding={handleBuyBuilding}
+          />
         )}
 
+        {/* TAB 4: INVEST */}
         {activeTab === 'invest' && (
           <InvestScreen
             gameState={gameState}
-            onBuyDataCenter={handleBuyDataCenter}
             onTakeFunding={handleTakeFunding}
             onBuyStock={handleBuyStock}
             onSellStock={handleSellStock}
           />
         )}
 
-        {activeTab === 'team' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {/* TAB 5: MORE */}
+        {activeTab === 'more' && (
+          <MoreScreen
+            gameState={gameState}
+            onNavigateToEvents={() => setActiveTab('events')}
+            onNavigateToAchievements={() => setActiveTab('achievements')}
+            onNavigateToSettings={() => setActiveTab('settings')}
+            onNavigateToNewEra={() => setActiveTab('new-era')}
+          />
+        )}
+
+        {/* SUB-VIEWS */}
+        {activeTab === 'events' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-4)' }}>
             <button
               type="button"
               onClick={() => setActiveTab('more')}
@@ -792,37 +869,13 @@ export const App: React.FC = () => {
                 fontWeight: 500,
                 cursor: 'pointer',
                 padding: 'var(--space-2) 0',
-                minHeight: '48px',
               }}
             >
               <Icon icon={ChevronLeft} size={20} aria-hidden="true" />
               <span>Back to More</span>
             </button>
-            <TeamScreen
-              gameState={gameState}
-              onBuyGpu={handleBuyGpu}
-              onHireResearcher={handleHireResearcher}
-              onBuyCooling={handleBuyCooling}
-              onBuySnacks={handleBuySnacks}
-              onUpgradeDataQuality={handleUpgradeDataQuality}
-              onStartMarketing={handleStartMarketing}
-            />
+            <EventsLogScreen gameState={gameState} onBackToMore={() => setActiveTab('more')} />
           </div>
-        )}
-
-        {activeTab === 'research' && (
-          <ResearchScreen
-            gameState={gameState}
-            onBackToMore={() => setActiveTab('more')}
-            onBuyResearch={handleBuyResearch}
-          />
-        )}
-
-        {activeTab === 'events' && (
-          <EventsLogScreen
-            gameState={gameState}
-            onBackToMore={() => setActiveTab('more')}
-          />
         )}
 
         {activeTab === 'achievements' && (
@@ -830,6 +883,10 @@ export const App: React.FC = () => {
             gameState={gameState}
             onBackToMore={() => setActiveTab('more')}
           />
+        )}
+
+        {activeTab === 'new-era' && (
+          <NewEraScreen onBackToMore={() => setActiveTab('more')} />
         )}
 
         {activeTab === 'settings' && (
@@ -842,123 +899,50 @@ export const App: React.FC = () => {
             onWipeSave={handleWipeSave}
           />
         )}
-
-        {activeTab === 'new-era' && (
-          <NewEraScreen
-            gameState={gameState}
-            onBackToMore={() => setActiveTab('more')}
-            onPrestige={handlePrestige}
-          />
-        )}
-
-        {activeTab === 'more' && (
-          <MoreScreen
-            gameState={gameState}
-            onNavigateToTeam={() => setActiveTab('team')}
-            onNavigateToResearch={() => setActiveTab('research')}
-            onNavigateToEvents={() => setActiveTab('events')}
-            onNavigateToAchievements={() => setActiveTab('achievements')}
-            onNavigateToSettings={() => setActiveTab('settings')}
-            onNavigateToNewEra={() => setActiveTab('new-era')}
-          />
-        )}
       </main>
 
-      {/* Tutorial Overlay (brand-new saves only, Skip always visible) */}
-      {!gameState.tutorialDone && gameState.labNameConfirmed && (
-        <TutorialOverlay
-          step={gameState.tutorialStep ?? 1}
-          onNext={handleTutorialNext}
-          onSkip={handleTutorialSkip}
-        />
-      )}
-
-      {/* Event Modal dialog when an event occurs */}
-      <EventModal
-        pendingEvent={gameState.pendingEvent}
-        onResolve={handleResolveEvent}
+      <BottomNav
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
       />
 
-      {/* Toast notification for achievement unlock */}
+      {/* TOAST NOTIFICATION */}
       {toastMessage && (
         <Toast
           message={toastMessage}
-          onDismiss={() => setToastMessage(null)}
+          onClose={() => setToastMessage(null)}
         />
       )}
 
-      {/* Offline Catch-up Report Modal */}
-      <OfflineModal
-        report={offlineReport}
-        onClose={() => setOfflineReport(null)}
-      />
-
-      {/* Sticky bar just above the bottom nav for Lab tab (hidden while training is active to avoid duplicate progress) */}
-      {activeTab === 'lab' && !gameState.currentTraining && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
-            left: 0,
-            right: 0,
-            maxWidth: '480px',
-            margin: '0 auto',
-            padding: '8px 16px',
-            background: 'var(--bg)',
-            borderTop: '1px solid var(--border)',
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'center',
-            minHeight: '64px',
-            boxSizing: 'border-box',
-          }}
-        >
-          {gameState.readyModel ? (
-            <Button
-              variant="primary"
-              onClick={handleLaunch}
-              style={{ width: '100%', height: '48px' }}
-            >
-              <ArrowUpRight size={16} strokeWidth={1.75} />
-              <span>Launch</span>
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={() => setActiveTab('models')}
-              style={{ width: '100%', height: '48px' }}
-            >
-              <Play size={16} strokeWidth={1.75} />
-              <span>Train</span>
-            </Button>
-          )}
-        </div>
+      {/* OFFLINE MODAL */}
+      {offlineReport && (
+        <OfflineModal
+          report={offlineReport}
+          onClose={() => setOfflineReport(null)}
+        />
       )}
 
-      {/* Bottom Navigation */}
-      <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />
-
-      {/* Name Your Lab Modal on new game */}
-      <Modal isOpen={!gameState.labNameConfirmed}>
-        <h2 className="modal-title">Name Your Lab</h2>
-        <p className="modal-description">
-          Welcome to Model Foundry. Choose a name for your AI lab.
-        </p>
-        <form onSubmit={handleConfirmLabName} className="modal-form">
-          <input
-            type="text"
-            className="text-input"
-            value={tempLabName}
-            onChange={(e) => setTempLabName(e.target.value)}
-            placeholder="Claude"
-            maxLength={32}
-            autoFocus
-          />
-          <Button variant="primary" type="submit" className="modal-submit-button">
-            Confirm Lab Name
-          </Button>
-        </form>
-      </Modal>
+      {/* FRESH START BOTTOM SHEET */}
+      {gameState.showFreshStartSheet && (
+        <Modal
+          isOpen={true}
+          title="New Claude HQ"
+          onClose={handleDismissFreshStartSheet}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+              Fresh start for the new game.
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+              Model Foundry has upgraded to a full idle tycoon! Build your AI empire from scratch:
+              train real Claude models, launch products, scale compute clusters, outpace industry rivals, and conquer market share.
+            </p>
+            <Button variant="primary" fullWidth onClick={handleDismissFreshStartSheet}>
+              OK
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

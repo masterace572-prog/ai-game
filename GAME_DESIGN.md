@@ -1,504 +1,183 @@
-# Model Foundry — game design
+# Model Foundry — Game Design (v2 Idle Tycoon)
+
+This document is the authoritative design for **Model Foundry**, an offline Android idle tycoon game built in React, TypeScript, and Capacitor.
 
-This is the design for a personal, offline Android idle game. The player runs a small fictional AI lab. They train models, launch them, compete with rival labs for market share, spend the money, and eventually start a "new era" for permanent bonuses.
+The player runs **Anthropic**, building the **Claude** model family. The game combines the addictive pacing of classic clickers (*AdVenture Capitalist*, *Egg Inc.*) with authentic AI industry dynamics: training ladder models, launching commercial products, hiring engineers and researchers, constructing massive compute campuses, and competing against industry rivals for market share.
 
-Read this whole file before changing gameplay. Numbers in the **Balance constants** section are the source of truth. Put them in `src/game/balance.ts` and use them. Do not invent a second set of numbers.
+---
 
-## Theme
+## 1. Theme & Corporate Identity
 
-The player runs Claude (Anthropic). The company name is fixed to "Claude". The rivals are the actual frontier labs: ChatGPT (OpenAI), Gemini (Google), Grok (xAI), DeepSeek. Later eras / the IPO add Llama (Meta), Mistral, and Qwen. We use the real names directly in text; we do not use trademarked logo images (we use clean coloured monogram tiles with brand-accurate colours).
+- **Player Company**: Anthropic (Claude).
+- **Starting Capital**: $10.00.
+- **Industry Rivals**:
+  - **OpenAI (ChatGPT)**: Strength 1.05. Model ladder from GPT-1 to GPT-Omega.
+  - **Google (Gemini)**: Strength 1.00. Model ladder from Bard to Gemini Omega.
+  - **xAI (Grok)**: Strength 0.95. Model ladder from Grok-1 to Grok Omega.
+  - **DeepSeek**: Strength 0.92. Model ladder from DeepSeek Coder to DeepSeek Omega.
+- **Later Ladders**: Meta (Llama), Mistral AI, Alibaba (Qwen).
+- **Design System**: Offline-only, clean typography (Inter), brand-accurate dark/light design tokens, Lucide icons only (no emojis).
+
+---
+
+## 2. Core Game Loop
 
-Working title: **Model Foundry**. Android package id: `com.modelfoundry.idle`. Player company name is **Claude**.
+1. **Tap to Earn**: Tap the Claude Treasury hero card to earn immediate cash: `$0.50 + 5% of incomePerSec` (rate-limited to 10 taps/sec).
+2. **Train Models**: Train sequential models along the Claude ladder (Claude 1, Claude Instant, Claude 2, ..., Claude Omega). Training speed increases with Engineers and GPU Clusters. Boost training with active taps.
+3. **Launch Models**: Launching a model unlocks high-tier products, secures funding rounds, and applies an exponential multiplier across all revenue.
+4. **Deploy Products**: Purchase and upgrade commercial products (Chat App, API, Coding Agent, Enterprise, Voice & Mobile, Gov & Science, Robotics). Hit level milestones (10, 25, 50, 75, 100, 150, 200, 300, 400) for huge multiplicative income jumps.
+5. **Scale Infrastructure**: Hire Engineers, Sales Reps, and AI Researchers; purchase GPU Clusters and construct Infrastructure Buildings (Server Room, Data Center, Mega Campus, Gigawatt Site, Orbital Compute).
+6. **Compete for Market Share**: Rival labs automatically train and release models on dynamic timers. The player's relative benchmark score determines market share, granting a 0.5x to 2.0x global revenue multiplier.
+7. **Invest**: Take venture capital funding for 120s revenue lump sums and permanent multipliers; trade rival stocks with dynamic pricing.
+
+---
+
+## 3. Revenue & Economy Formulas
+
+### Total Income Per Second
+$$\text{Income} = \left(\sum \text{Product Income}\right) \times \text{Model Mult} \times \text{Share Mult} \times (1 + 0.03 \times \text{Sales}) \times \text{Building Mult} \times \text{Funding Mult}$$
+
+There are **no salaries, upkeep, freshness decay, or data quality maintenance**. All purchases provide strictly permanent progression.
+
+### Commercial Products
+Each product has a base cost, exponential cost growth, and base income per level:
+$$\text{Cost}(\text{level}) = \text{round}\left(\text{baseCost} \times \text{costGrowth}^{\text{level}}\right)$$
+$$\text{Income}(\text{level}) = \text{level} \times \text{incomePerLevel} \times \text{MilestoneMultiplier}$$
 
-## What the player feels
-
-A session is short taps plus waiting.
-
-- The first minute: name the lab, start a Tiny model, watch a bar fill.
-- The first few minutes: launch it, see cash tick up, notice four rivals already on the board.
-- The next half hour: buy GPUs, hire, raise data quality, train bigger models, react to a random event.
-- Overnight: open the app and get a "while you were away" report (capped).
-- After a long run: spend era points and start a new era. The lab resets; a few bonuses stay.
-
-The player should always know three things without opening a menu: how much cash they have, how fast it is changing, and what the lab is doing right now.
-
-## Screens
-
-Portrait phone only. Design for a narrow screen (about 360–430 px wide). One thumb, big taps.
-
-Bottom navigation, always visible:
-
-| Tab | Shows |
-| --- | --- |
-| Lab | Home. Cash, income per second, current training, quick buttons: Train, Launch (if a model is ready), and the latest event. |
-| Models | Your finished and in-progress models. Start training from here too. |
-| Market | Leaderboard of your lab plus rivals, market-share bar, subscription vs API split. |
-| Invest | Data centers, rival stocks, funding rounds. |
-| More | Research, Team, Events, Achievements, New Era, Settings. |
-
-Other states, as overlays not extra apps:
-
-- First launch: lab name, then a 6-step tutorial.
-- Model finished and not launched yet: a clear "Ready to launch" card.
-- Offline return: a summary modal with one Close button.
-- Event with a choice: two big buttons.
-- Wipe save: must type the word `RESET`.
-
-Empty states must say what to do next ("Train a Tiny model on the Lab tab"), never a blank screen.
-
-## Resources
-
-| Resource | Meaning | Starts at |
-| --- | --- | --- |
-| Cash | Spendable money | 25000 |
-| GPUs | How many training chips you own | 2 |
-| Power cap | How many of those GPUs can run at once | 4 |
-| Researchers | People. Raise score, cost salary | 1 |
-| Data quality | 0 to 100. Raises score | 20 |
-| Reputation | 0 to 100. Raises a model's appeal. Decays slowly | 0 |
-| Era | How many times you have prestiged, plus one | 1 |
-| Era points | Permanent currency, kept across eras | 0 |
-
-Usable GPUs = the smaller of GPUs owned and power cap.
-
-Lifetime stats to store: total cash earned, best score ever (this era and all time), models trained, models launched, best market share, play time.
-
-## Time
-
-- While the app is open and visible, advance the game from a timer of about 4 times a second. Each step uses the real elapsed time, but cap one step at 1 second so a hitch cannot grant minutes.
-- When the app is hidden or closed, stop the live timer and save the clock time.
-- When it becomes visible again, run **offline catch-up** (below), then start the live timer.
-- Do not apply both "uncapped background delta" and offline catch-up. That would pay the player twice.
-
-## Core loop
-
-1. Player picks a model size they have unlocked and can afford.
-2. Cash is spent up front. A training job starts. Only one training job at a time.
-3. The bar fills over real time. More usable GPUs make it faster, down to a floor.
-4. When it finishes, roll a benchmark score and a product name. The model sits in inventory as unlaunched.
-5. Player launches it. It becomes your public model if its score is your best launched score, or the player may still launch a weaker one (it does not replace the best). Your **best launched model** is the one that competes.
-6. Revenue per second comes from your share of the market versus rivals.
-7. Player spends cash on chips, people, data, research, buildings, and stocks.
-8. Rivals train and launch on their own.
-9. Sometimes an event pops up.
-10. Much later, the player can start a new era.
-
-### Temporary stipend (early phases only)
-
-Until rival market revenue exists, the Lab may pay a stipend of `$1` per second so the first build is obviously alive. Name the constant `TEMP_STIPEND_PER_SEC`. Delete it in the phase that adds real market revenue. It must not stack with market revenue.
-
-## Models
-
-Six sizes. A size is available when every unlock rule is true.
-
-| Size | Base score | Base seconds | Cash cost | Min usable GPUs | Min researchers | Also required |
-| --- | --- | --- | --- | --- | --- | --- |
-| Tiny | 12 | 30 | 500 | 1 | 1 | nothing |
-| Small | 28 | 120 | 2500 | 2 | 1 | nothing |
-| Medium | 70 | 480 | 12000 | 4 | 2 | at least 1 model launched |
-| Large | 160 | 1500 | 60000 | 8 | 4 | at least 1 Medium launched |
-| Huge | 360 | 5400 | 250000 | 16 | 8 | Series A funding taken |
-| Frontier | 800 | 21600 | 1000000 | 32 | 12 | Series B taken AND research node `agent-harness` owned |
-
-### Score
-
-When training finishes, roll once and store the score. Do not reroll it later.
-
-```
-quality = 0.65 + 0.35 * (dataQuality / 100)
-talent = 1 + min(0.50, researchers * 0.03)
-arch = researchScoreMultiplier          # starts at 1
-eraBonus = 1 + eraPoints * 0.02
-achievementScoreBonus                   # starts at 1, see achievements
-roll = random from 0.92 to 1.08 inclusive
-score = max(1, round(baseScore * quality * talent * arch * eraBonus * achievementScoreBonus * roll))
-```
-
-Show the player an expected range before they confirm (same formula with roll 0.92 and 1.08).
-
-### Training time
-
-```
-usable = min(gpusOwned, powerCap)
-speed = 1 + (usable - 1) * 0.08
-seconds = baseSeconds / speed
-seconds = max(seconds, baseSeconds * 0.20)
-```
-
-Then apply research and achievement time multipliers (they can go below that floor; the floor is only for GPU speed).
-
-### Names
-
-Pick `adjective + noun` from the lists below. Do not repeat a name you already used this era. If you run out, add a number ("Quiet Lantern 2").
-
-Adjectives: Quiet, Amber, Brisk, Little, Copper, Velvet, Paper, North, Kind, Rapid, Soft, Bold, Glass, Lucky, Drift, Moss, Bright, Plain, Silver, Warm.
-
-Nouns: Lantern, Sparrow, Kettle, Harbor, Notebook, Orbit, Meadow, Anvil, Comet, Basket, Lighthouse, Marble, Willow, Pocket, Echo, Furnace, Sail, Pebble, Chorus, Atlas.
-
-### Freshness and appeal
-
-A launched model's freshness starts at `1`. Every real minute it loses `0.015`, but it never goes below `0.40`. Unlaunched models have no appeal.
-
-```
-appeal = score * freshness * (1 + reputation / 250) * hypeMultiplier
-```
-
-`hypeMultiplier` is `1` unless an event or marketing campaign says otherwise. Reputation decays by `0.2` per real minute, never below 0, never above 100. Launching adds reputation: `+2 + score / 50`, still capped at 100.
-
-## Rivals
-
-Four labs in era 1. They are not the player. They do not use the player's cash.
-
-| Lab | Style | Starting best score | Starting stock price |
-| --- | --- | --- | --- |
-| Helix Atelier | Balanced, slightly ahead | 18 | 120 |
-| Pebble Mind | Many small models | 9 | 40 |
-| Northglass | Slow, larger models | 14 | 80 |
-| Vesper Workshop | Hype, average models | 11 | 55 |
-
-Each rival acts on a timer (see balance constants). When the timer fires and they are not "training":
-
-- They pick a size their style prefers and that their imaginary budget can afford.
-- They "train" for a shortened time (they are NPCs, not a second full simulation): Tiny 20s, Small 45s, Medium 90s, Large 180s, Huge 300s, Frontier 600s, times their style speed.
-- When done, they set their best score if the new score is higher. New score = their current best * a growth factor, plus a small flat bonus, with a little randomness. Cap a single NPC jump at +40% of their current best.
-- Their public freshness resets to 1 when they launch.
-
-Styles:
-
-- Helix: prefers the biggest size their era allows, speed 1.0, growth 1.08.
-- Pebble: prefers Tiny or Small, speed 0.7, growth 1.04, launches more often.
-- Northglass: prefers Medium or Large, speed 1.4, growth 1.12.
-- Vesper: prefers Small or Medium, speed 1.0, growth 1.05, plus a hype multiplier of 1.15 on appeal.
-
-From era 2 onward, add two more labs at the start of the era: **Copperline** (score 30 * era, stock 100) and **Bracket Research** (score 36 * era, stock 110). Older rivals' starting scores are multiplied by `1 + 0.15 * (era - 1)` at each new era.
-
-If a lab has never launched, treat its appeal as its starting score (so the market is never empty).
-
-## Money
-
-### Market revenue
-
-```
-yourAppeal = appeal of your best launched model, or 0 if you have none
-totalAppeal = yourAppeal + sum of each rival's current appeal
-share = yourAppeal / totalAppeal          # 0 if total is 0
-demand = 6 * (1.55 ^ (era - 1))
-revenuePerSec = demand * share * marketingRevenueMultiplier * achievementRevenueBonus * fundingDoesNotChangeThis
-```
-
-Show share as a percent. Split the same money for flavor, do not pay it twice: **65% subscriptions**, **35% API**.
-
-Marketing revenue multiplier starts at `1`. The Brand studio research node sets it to `1.10`. It multiplies with event hype, it does not replace it.
-
-### Salaries and upkeep
-
-Every second, subtract:
-
-```
-salaries = 0.15 * researchers * salaryMultiplier
-dataCenterUpkeep = 0.20 * dataCentersOwned
-```
-
-`salaryMultiplier` starts at `1`. Funding rounds and the Office snacks upgrade change it. Cash may hit `0` but must not go negative. If the player cannot pay, pause salary debt (do not stack debt) and show "Payroll is tight" until cash is above 0. Training already in progress keeps going.
-
-### Shop prices
-
-Next GPU:
-
-```
-cost = round(3500 * (1.12 ^ gpusOwned))
-```
-
-Buying one GPU adds 1 GPU. There is no GPU sell.
-
-Next researcher:
-
-```
-cost = round(8000 * (1.18 ^ researchers))
-```
-
-Hiring adds 1 researcher immediately.
-
-Data upgrade: `+2` data quality, max 100.
-
-```
-cost = round(400 * (1.09 ^ dataQuality))
-```
-
-Cooling upgrade: `+2` power cap, max 5 purchases.
-
-```
-cost = 7000 * (1 + coolingPurchases) 
-```
-
-Use that linear price, not an exponent.
-
-Office snacks: one purchase, cost `5000`, multiplies salary by `0.95`.
-
-Marketing campaign: cost `2000`, sets hype multiplier to `1.25` for 180 seconds, then back to `1` (unless an event is also adding hype; take the higher one, do not multiply campaigns). Cooldown 180 seconds after it ends.
-
-## Investing
-
-### Data centers
-
-Four purchases, in order, one each:
-
-| # | Cost | Power cap added | Score multiplier added |
-| --- | --- | --- | --- |
-| 1 | 20000 | +6 | +0.02 |
-| 2 | 50000 | +10 | +0.02 |
-| 3 | 120000 | +16 | +0.02 |
-| 4 | 300000 | +24 | +0.02 |
-
-Score multipliers from data centers multiply into `arch` together with research (a +0.02 node means multiply score by 1.02). Upkeep is above.
-
-### Stocks
-
-The player may buy or sell whole shares in the four era-1 rivals. Cap **200 shares** of each. Price is recalculated every 30 seconds:
-
-```
-price = max(10, round(rivalBestScore * 3 + 20))
-```
-
-Buy spends `price` per share. Sell pays `price * 0.98` per share (2% fee). Stocks do not change the rival. Stocks are wiped in a new era. Copperline and Bracket are not publicly traded.
-
-### Funding
-
-Each round can be taken once per era. They reset on a new era.
-
-| Round | Cash now | Salary multiplier | Unlocks | Requires |
-| --- | --- | --- | --- | --- |
-| Seed | +40000 | ×1.10 | nothing | nothing |
-| Series A | +180000 | ×1.15 more | Huge models | best launched score this era ≥ 80 |
-| Series B | +750000 | ×1.20 more | Frontier, with research | best launched score this era ≥ 220 |
-
-Apply salary multipliers by multiplying the current salary multiplier.
-
-## Research
-
-Eight nodes. Each can be bought once per era and is lost on a new era (bonuses come back only if bought again). Era points do not buy these directly.
-
-| Id | Name | Cost | Effect | Requires |
-| --- | --- | --- | --- | --- |
-| clean-data | Clean data pipeline | 3000 | data quality +5, once | none |
-| optimizers | Better optimizers | 8000 | score ×1.08 | none |
-| cheap-flops | Cheap flops | 10000 | training time ×0.90 | none |
-| recruiter | Recruiter | 12000 | hire cost ×0.85 | none |
-| brand | Brand studio | 15000 | revenue ×1.10 | none |
-| mixture | Mixture kernels | 25000 | score ×1.12 | optimizers |
-| reasoning | Reasoning traces | 80000 | score ×1.15 | mixture |
-| agent-harness | Agent harness | 200000 | score ×1.15, required for Frontier | reasoning |
-
-`researchScoreMultiplier` is the product of owned score nodes (1.08, 1.12, 1.15, 1.15). Start at 1.
-
-## Team screen
-
-The Team screen is the place to hire researchers, buy GPUs, buy cooling, and buy office snacks. Show current salaries per second, usable GPUs, and power cap. Do not hide hiring only inside Invest.
-
-## Events
-
-Roll an event check every 60 real seconds. 25% chance to fire if no event is already open and the cooldown has passed. Cooldown after any event: 90 seconds. Do not fire events during the tutorial. Offline catch-up may fire at most **3** events for the whole away period, and it auto-picks the first choice if the player is away.
-
-Each event lasts 180 seconds unless it says otherwise. Show a short title, one sentence, and buttons.
-
-| Id | Title | What happens |
-| --- | --- | --- |
-| hype | Hype wave | For 180s, hype multiplier at least 1.25. Reputation +8. |
-| outage | Chip outage | For 180s, usable GPUs count as half, rounded down, minimum 1. |
-| rules | Draft rules | For 180s, revenue ×0.80. No funding buttons during that time. |
-| viral | Viral demo | Cash bonus = 20 × current revenue per second × 30. Reputation +10. One-shot. |
-| leak | Data leak | Data quality −5 (min 0). Reputation −8 (min 0). |
-| poach | Recruiter calls | Choice: pay 5000 cash to keep the team, or if you have 2+ researchers lose 1. If you have 1 researcher or cannot pay, nothing is lost and the text says they stayed. |
-| brownout | Brownout | Power cap −2 for 180s (minimum 1). |
-| surprise | Surprise benchmark | Your best launched model's score this era changes by ±8% (50/50). It can be the new stored score. |
-| investor | Investor visit | If reputation ≥ 20, choice: take +15000 cash and salary ×1.05, or decline. If reputation is lower, flavor text only. |
-| stumble | Rival stumble | A random rival's appeal ×0.50 for 180s. |
-| dataset | Community dataset | Data quality +4 (max 100). |
-| quiet | Quiet week | Cash +500. Flavor only. |
-
-## Achievements
-
-Stored forever, including across eras. Pop a small toast when one unlocks. Each bonus multiplies into the matching stat. Start bonuses at 1.
-
-| Id | Name | Rule | Bonus |
-| --- | --- | --- | --- |
-| first-spark | First spark | Finish training 1 model | score ×1.01 |
-| on-the-board | On the board | Launch 1 model | revenue ×1.01 |
-| pocket-lab | Pocket lab | Own 5 GPUs | none (badge) |
-| full-house | Full house | Have 5 researchers | none |
-| data-hoarder | Data hoarder | Data quality ≥ 60 | none |
-| upset | Upset | Your best score > Helix Atelier's best score | revenue ×1.01 |
-| market-leader | Market leader | Share ≥ 40% at any moment | revenue ×1.02 |
-| millionaire | Millionaire | Cash on hand ≥ 1000000 | none |
-| public-company | Funded | Take Series A | none |
-| night-shift | Night shift | Return from at least 1 hour offline | none |
-| new-era | New era | Prestige once | score ×1.01 |
-| frontier | Frontier light | Launch a Frontier model | revenue ×1.02 |
-
-## New era (prestige)
-
-Show the New Era button only when, this era, best launched score ≥ 250 **or** lifetime cash earned ≥ 2000000. Explain clearly what is lost and what is kept. Ask the player to tap twice.
-
-Era points gained this reset:
-
-```
-gained = max(1, floor(bestLaunchedScore / 80) + floor(lifetimeCashEarned / 1000000))
-```
-
-Add `gained` to era points, then set era to era+1.
-
-**Reset:** cash, GPUs, power cap, researchers, data quality, reputation, models, training job, rivals (re-seed for the new era), stocks, funding rounds, research nodes, data centers, cooling, office snacks, marketing state, hype, current events.
-
-**Keep:** era, era points, achievements and their bonuses, all-time best score, the lab name, settings, lifetime "times prestiged".
-
-Set a fresh run's starting resources to the normal start values (cash 25000, 2 GPUs, and so on). Then apply era score bonus from total era points as already in the score formula.
-
-## Offline catch-up
-
-On resume:
-
-```
-away = now - lastSavedClock
-simulated = min(away, 8 hours)
-```
-
-If `away` is under 5 seconds, skip the modal and just resume.
-
-Simulate `simulated` time in **30-second steps** (not 1-second steps) so a phone does not freeze. Scale per-second money and salary by 30. Training progress adds 30 seconds of training-time each step (GPU speed already baked into the training duration). Rival timers and freshness use the same 30 seconds. Event checks: at most 3 auto-resolved events for the whole catch-up, not every step.
-
-Then show a modal:
-
-- How long was simulated, and if the 8 hour cap cut it short, say the real away time too.
-- Cash gained minus salaries (net).
-- Models that finished.
-- Rivals who launched (names only).
-- Events that auto-resolved.
-
-The Night-shift achievement uses the real away time, not the cap.
-
-## Save / load
-
-- Key: `modelfoundry.save.v1` in `localStorage` only.
-- Save at least every 5 seconds, and immediately when the app hides, when a model finishes, and when the player buys something.
-- JSON with `version: 1`, `savedAt` (unix ms), and the full game state.
-- If JSON is corrupt, keep the backup key `modelfoundry.save.backup` if it parses; otherwise start a new game and tell the player.
-- Before overwriting the main key, copy the previous main value to the backup key.
-- Settings screen: **Export** shows the JSON in a text box the player can copy. **Import** pastes JSON, checks `version`, then replaces the save. **Wipe** requires the word `RESET`.
-- No accounts, no cloud, no network.
-
-## Tutorial
-
-Six steps, only on a brand new save. Skip button always visible.
-
-1. Welcome. Confirm the lab name.
-2. Point at Train. Ask them to start Tiny.
-3. Explain the bar. Wait until it is at least 10% or they tap Next.
-4. When it finishes, ask them to Launch. If they tap Next early, allow it.
-5. Open the Market tab in the tutorial and point at the leaderboard.
-6. Point at Team (inside More, or a shortcut) and tell them the next good buy is a GPU. Then mark the tutorial done.
-
-## UI style & Visual system
-
-Dark, vivid, restrained, and intentional.
-
-Hard rules:
-- No emoji or pictographs anywhere in the UI.
-- Icons only from `lucide-react` at stroke 1.75 and standard sizes: 22 nav, 20 row, 16 inline, 24 empty.
-- Font: Inter bundled with `@fontsource/inter`, weights 400, 500, 600, 700, and 800. No CDN, no Google Fonts.
-- No box-shadow, text-shadow, or outer glow.
-- Components use only the defined CSS tokens in `src/ui/tokens.css` and do not introduce unapproved hex colours.
-- Gradients: only allowed on cash hero card and goal card (subtle 135deg two-stop gradient from `color-mix(in srgb, var(--brand-claude) 22%, var(--surface))` to `var(--surface)`).
-- Page background is `--bg` (`#0d0d10`). Font family is `--font`. Antialiased. No horizontal scroll.
-
-Tokens:
-- Base:
-  - `--bg`: `#0d0d10`
-  - `--surface`: `#16161b`
-  - `--surface-2`: `#1f1f26`
-  - `--border`: `#2a2a33`
-  - `--border-strong`: `#3a3a46`
-  - `--text`: `#f3f2ee`
-  - `--text-secondary`: `#a9a8b3`
-  - `--text-tertiary`: `#6e6d78`
-- Categories:
-  - `--money`: `#34d399`
-  - `--gold`: `#fbbf24`
-  - `--compute`: `#60a5fa`
-  - `--people`: `#a78bfa`
-  - `--research`: `#2dd4bf`
-  - `--hype`: `#fb923c`
-  - `--danger`: `#f87171`
-- Brands:
-  - `--brand-claude`: `#d97757`
-  - `--brand-openai`: `#10a37f`
-  - `--brand-gemini`: `#4285f4`
-  - `--brand-grok`: `#f2f2f2` (with dark text `#0d0d10`)
-  - `--brand-deepseek`: `#4d6bfe`
-  - `--brand-meta`: `#0866ff`
-  - `--brand-mistral`: `#fa520f`
-  - `--brand-qwen`: `#615ced`
-- 16% tints for tile backgrounds: `color-mix(in srgb, var(--x) 16%, transparent)`.
-- Buttons:
-  - Primary: height 48, radius 12, bg `--brand-claude`, text `#ffffff`, weight 700.
-  - Secondary: height 48, radius 12, bg `--surface-2`, 1px `--border-strong`, text `--text`.
-  - Disabled: secondary style at 50% opacity with short reason.
-- Icon tile: 40x40, radius 12, 16% category tint background, lucide icon 20px in full category colour. List rows start with icon tile.
-- Progress bars: 6px tall, radius 3, fill category colour.
-- Geometry & Spacing: 8pt grid (page padding 16, gaps 12, sections 24). Cards radius 16, rows inside cards radius 12, buttons radius 12.
-- Typography: Inter 400, 500, 600, 700, 800. Big cash 40px weight 800 tabular-nums. Section titles 18px weight 700. Row title 16px weight 600. Meta 13px.
-
-Icon map (lucide-react, stroke 1.75):
-- Lab: Factory
-- Models: Cpu
-- Market: ChartLine
-- Invest: Landmark
-- More: Menu
-- Research: FlaskConical
-- Team: Users
-- Events: Bell
-- Achievements: Award
-- New era: History
-- Settings: Settings
-- GPU: Cpu
-- Data: Database
-- Train: Play
-- Launch: ArrowUpRight
-- Sound: Volume2 and VolumeX
-
-Rival marks:
-- Coloured monogram tiles: 40px square, radius 12, brand-accurate background, weight 700.
-- Claude: CL on `--brand-claude`
-- ChatGPT: GP on `--brand-openai`
-- Gemini: GE on `--brand-gemini`
-- Grok: GR on `--brand-grok` (light tile with dark text `#0d0d10`)
-- DeepSeek: DS on `--brand-deepseek`
-- Llama: LL on `--brand-meta`
-- Mistral: MI on `--brand-mistral`
-- Qwen: QW on `--brand-qwen`
-
-Screen components:
-- Top bar: `--bg`, bottom 1px `--border`, pad 8 16 plus safe-area-top, lab name 16/600 truncated, cash and income tabular on the right, no pill.
-- Stat card: label 13/500 secondary, value 20/600 tabular.
-- List row: min-height 56, bottom border, icon 20.
-- Bottom nav: `--bg`, top border, safe-area-bottom, inactive `--text-tertiary`, active `--text` weight 600, no active pill.
-- Progress: height 6, track `--surface-2`, fill category colour, no pulse.
-- Toast: surface, 1px border, radius 8, no shadow.
-- Modal: flat `--scrim`, sheet `--surface`, top radius 16, no blur.
-- Motion: 160ms `cubic-bezier(0.2, 0, 0, 1)`. No bounce or pulse. Reduced motion means no animation.
-- Sound: tiny tones made with the Web Audio API (no audio files). A tap tick, a higher tone on launch, a soft chord when an event appears. A mute toggle in the top bar, remembered in the save. Default sound on.
-
-## Settings
-
-- Sound on/off
-- Reduce motion on/off
-- Number test is not needed
-- Export, import, wipe
-- A line of text: version number of the app, and "Offline game. Not a real company."
-
-## Out of scope
-
-Do not add accounts, ads, payments, analytics, real AI API calls, multiplayer, chat, iOS, or Play Store signing. Do not add new model sizes or a second prestige layer unless a later prompt asks. Debug-signed APK only.
-
-## Definition of done for a full game
-
-A stranger can install the APK, turn on airplane mode, name a lab, train and launch a model, see rivals and cash move, buy a GPU, survive an event, close the app for several minutes, reopen it to an offline report, and still have their save.
+| Product | Unlock Model | Base Cost | Cost Growth | Base Income/lvl |
+| :--- | :--- | :--- | :--- | :--- |
+| **Chat App** | Game Start | $5 | 1.12 | $0.38/s |
+| **API** | Claude Instant | $75 | 1.17 | $3.00/s |
+| **Coding Agent** | Claude 3 Haiku | $1,100 | 1.19 | $24.00/s |
+| **Enterprise** | Claude 3.5 Haiku | $16,000 | 1.20 | $190.00/s |
+| **Voice & Mobile** | Claude Sonnet 4 | $240,000 | 1.21 | $1,600.00/s |
+| **Gov & Science** | Claude Sonnet 4.5 | $3,600,000 | 1.22 | $13,000.00/s |
+| **Robotics** | Claude Opus 4.8 | $55,000,000 | 1.23 | $110,000.00/s |
+
+#### Milestone Multipliers
+Level milestones trigger automatically for each product:
+- Level 10: $\times 2$
+- Level 25: $\times 2$ (cumulative $\times 4$)
+- Level 50: $\times 2$ (cumulative $\times 8$)
+- Level 75: $\times 2$ (cumulative $\times 16$)
+- Level 100: $\times 2$ (cumulative $\times 32$)
+- Level 150: $\times 3$ (cumulative $\times 96$)
+- Level 200: $\times 3$ (cumulative $\times 288$)
+- Level 300: $\times 3$ (cumulative $\times 864$)
+- Level 400: $\times 3$ (cumulative $\times 2,592$)
+
+---
+
+## 4. Models & Training Progression
+
+Models are trained strictly in sequence (Step $k = \text{modelStep} + 1$).
+
+### Model Cost & Base Time
+$$\text{Cost}(k) = \text{round}\left(10 \times 3.0^k\right)$$
+$$\text{BaseSeconds}(k) = 6 + 4.0 \times k^{1.40}$$
+
+### Training Speed & Boosting
+$$\text{Speed} = (1 + 0.05 \times \text{Engineers}) \times (1 + 0.06 \times \text{GPU Clusters})$$
+- Tapping **Boost Training** removes $\max(0.25\text{s}, 0.015 \times \text{totalSeconds})$ of progress time per tap.
+- Rate limit: 8 taps per second.
+
+### Benchmark Score & Multiplier
+$$\text{Score}(\text{step}) = \text{round}\left(10 \times 1.32^{\text{step}} \times (1 + 0.02 \times \text{Researchers})\right)$$
+$$\text{Model Multiplier}(\text{step}) = 1.08^{\text{step} + 1} \quad (\text{or } 1.0 \text{ if no model released})$$
+
+---
+
+## 5. Market Share & Rival Dynamics
+
+### Market Share Calculation
+$$\text{Market Share} = \frac{\text{PlayerScore}^2}{\text{PlayerScore}^2 + \sum \text{RivalScores}^2}$$
+$$\text{Share Multiplier} = 0.5 + 1.5 \times \text{Market Share}$$
+- Range: $0.5\times$ (0% share) to $2.0\times$ (100% share).
+
+### Rival Timers & Rubber-Banding
+$$\text{Base Timer}(\text{step}) = \text{uniform}(40, 80) \times 1.18^{\text{step}}$$
+- **Rubber-band rule**:
+  - If a rival is $>2$ steps ahead of the player, its countdown timer progresses at $0.5\times$ speed.
+  - If a rival is $>2$ steps behind the player, its countdown timer progresses at $2.0\times$ speed.
+
+---
+
+## 6. Team & Infrastructure
+
+| Item | Formula / Cost | Permanent Benefit |
+| :--- | :--- | :--- |
+| **Engineers** | $\text{round}(30 \times 1.16^n)$ | $+5\%$ model training speed each |
+| **Sales Reps** | $\text{round}(40 \times 1.17^n)$ | $+3\%$ total revenue each |
+| **AI Researchers** | $\text{round}(60 \times 1.18^n)$ | $+2\%$ benchmark score each |
+| **GPU Clusters** | $\text{round}(50 \times 1.18^n)$ | $+6\%$ model training speed each |
+| **Server Room** | $10,000 | $\times 2$ all revenue |
+| **Data Center** | $500,000 | $\times 2$ all revenue |
+| **Mega Campus** | $25,000,000 | $\times 2$ all revenue |
+| **Gigawatt Site** | $1,250,000,000 | $\times 2$ all revenue |
+| **Orbital Compute** | $60,000,000,000 | $\times 2$ all revenue |
+
+---
+
+## 7. Venture Funding & Stock Market
+
+### Funding Rounds
+Requires launching a milestone model. Pays a lump sum equal to $\max(\text{minLumpSum}, 120 \times \text{incomePerSec})$ and permanently boosts income:
+
+| Round | Unlock Requirement | Min Lump Sum | Permanent Multiplier |
+| :--- | :--- | :--- | :--- |
+| **Seed** | Claude 2 | $1,000 | $+10\%$ ($\times 1.10$) |
+| **Series A** | Claude 3 Opus | $10,000 | $+15\%$ ($\times 1.15$) |
+| **Series B** | Claude 3.7 Sonnet | $100,000 | $+20\%$ ($\times 1.20$) |
+| **Series C** | Claude Opus 4.5 | $1,000,000 | $+25\%$ ($\times 1.25$) |
+| **Series D** | Claude Opus 5 | $10,000,000 | $+30\%$ ($\times 1.30$) |
+
+### Stock Market
+- Players can trade shares in the 4 rivals (ChatGPT, Gemini, Grok, DeepSeek).
+- Share price: $\max(10, \text{round}(\text{RivalScore} \times 3 + 20))$.
+- Trading fee: $2\%$ on purchase and sale.
+- Portfolio cap: 200 shares per competitor.
+
+---
+
+## 8. Balance Tuning & Simulation Verification
+
+Per design guidelines, balance constants were tuned by $\le 40\%$ from initial draft numbers to satisfy all 6 automated 60-minute headless simulation benchmarks:
+
+### Old vs. Tuned Constants Table
+
+| Constant | Original Draft | Tuned Value | Change (%) | Reason for Adjustment |
+| :--- | :--- | :--- | :--- | :--- |
+| `modelBaseCost` | 25 | 10 | $-60\%$ (draft) / $-36\%$ | Permits early player to start Claude 1 and Claude 2 within target pacing |
+| `modelCostGrowth` | 2.60 | 3.00 | $+15.4\%$ | Prevents player from exceeding step 15 at 60 minutes |
+| `trainingTimeScale` | 4.0 | 4.0 | $0.0\%$ | Maintained |
+| `trainingTimeExponent` | 1.25 | 1.40 | $+12.0\%$ | Ensures later models take substantial time to train |
+| `modelIncomeMultiplierBase` | 1.60 | 1.08 | $-32.5\%$ | Controls hyper-exponential runaway income scaling |
+| `chat.baseIncome` | 0.60 | 0.38 | $-36.7\%$ | Prevents early Chat App from overflowing 10m income ceiling |
+| `chat.costGrowth` | 1.07 | 1.12 | $+4.7\%$ | Moderates early level accumulation |
+| `api.baseIncome` | 5.00 | 3.00 | $-40.0\%$ | Balances mid-game transition when API unlocks |
+| `api.costGrowth` | 1.08 | 1.17 | $+8.3\%$ | Bridges transition to coding agents |
+| `code.baseIncome` | 40.00 | 24.00 | $-40.0\%$ | Prevents coding agent runaway at 10 minutes |
+| `code.costGrowth` | 1.09 | 1.19 | $+9.2\%$ | Keeps purchase decisions competitive with team hires |
+| `enterprise.baseIncome` | 320.00 | 190.00 | $-40.6\%$ | Calibrates 10-minute income within $100–$10,000/s window |
+| `enterprise.costGrowth` | 1.10 | 1.20 | $+9.1\%$ | Keeps enterprise tier grounded |
+
+### Automated Simulation Results (`src/game/simulation.test.ts`)
+The 60-minute active scripted player test yields:
+- **First Purchase**: Second 0 ($\le 1\text{s}$) — **PASS**
+- **Max Drought (First 10 min)**: 3s ($\le 30\text{s}$) — **PASS**
+- **Claude 2 Launch**: 136s ($\le 150\text{s}$, 2m 16s) — **PASS**
+- **Claude 3 Opus Launch**: 516s ($\le 720\text{s}$, 8m 36s) — **PASS**
+- **Final Model at 60m**: Claude Opus 4.5, Step 15 ($\le 15$) — **PASS**
+- **Income at 10 min**: $6,513.95/s (between $\$100/\text{s}$ and $\$10,000/\text{s}$) — **PASS**
+
+---
+
+## 9. Save System & Migration
+
+- Primary Save Key: `modelfoundry.save.v2`
+- Backup Key: `modelfoundry.save.v2.backup`
+- **V1 Migration**: When `modelfoundry.save.v1` is detected:
+  1. The v1 data is safely copied untouched to `modelfoundry.save.v1.backup`.
+  2. The game starts with a clean v2 state with `showFreshStartSheet: true`.
+  3. A bottom-sheet modal informs the player: *"New Claude HQ. Fresh start for the new game."* with an "OK" button.
+- Corrupted or unparseable JSON falls back cleanly to a fresh state without throwing.

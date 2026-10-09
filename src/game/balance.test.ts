@@ -3,64 +3,73 @@ import {
   APP_VERSION,
   DEFAULT_LAB_NAME,
   STARTING_CASH,
-  MODEL_SIZES,
-  OFFLINE_CAP_HOURS,
-  getGpuPrice,
-  CLAUDE_LADDER,
-  OPENAI_LADDER,
-  GEMINI_LADDER,
-  GROK_LADDER,
-  DEEPSEEK_LADDER,
-  LLAMA_LADDER,
-  MISTRAL_LADDER,
-  QWEN_LADDER,
-  getRivalModelName,
+  PRODUCTS,
+  getProductMilestoneMultiplier,
+  getProductNextCost,
+  getProductIncomePerSec,
+  getModelCost,
+  getModelBaseSeconds,
+  getModelScore,
+  getModelIncomeMultiplier,
+  getBoostSecondsRemoved,
+  getEngineerCost,
+  getSalesCost,
+  getResearcherCost,
+  getGpuClusterCost,
+  getBuildingMultiplier,
 } from './balance';
 
-describe('Balance constants and formulas', () => {
-  it('app version is 0.2.0 and default lab name is Claude', () => {
-    expect(APP_VERSION).toBe('0.2.0');
+describe('Balance constants and formulas (v2)', () => {
+  it('app version is 0.3.0 and default lab name is Claude', () => {
+    expect(APP_VERSION).toBe('0.3.0');
     expect(DEFAULT_LAB_NAME).toBe('Claude');
   });
 
-  it('starting cash is 25000', () => {
-    expect(STARTING_CASH).toBe(25000);
+  it('starting cash is 10', () => {
+    expect(STARTING_CASH).toBe(10);
   });
 
-  it('Tiny base score is 12', () => {
-    expect(MODEL_SIZES.tiny.baseScore).toBe(12);
+  it('Chat App costs $5 at level 0 and earns income at level 1', () => {
+    expect(PRODUCTS.chat.baseCost).toBe(5);
+    expect(getProductNextCost('chat', 0)).toBe(5);
+    expect(getProductIncomePerSec('chat', 1)).toBe(0.38);
   });
 
-  it('Tiny base time is 30 seconds', () => {
-    expect(MODEL_SIZES.tiny.baseSeconds).toBe(30);
+  it('milestones multiply product income correctly', () => {
+    expect(getProductMilestoneMultiplier(9)).toBe(1);
+    expect(getProductMilestoneMultiplier(10)).toBe(2);
+    expect(getProductMilestoneMultiplier(25)).toBe(4);
+    expect(getProductMilestoneMultiplier(50)).toBe(8);
+    expect(getProductMilestoneMultiplier(75)).toBe(16);
+    expect(getProductMilestoneMultiplier(100)).toBe(32);
+    expect(getProductMilestoneMultiplier(150)).toBe(96);
   });
 
-  it('offline cap is 8 hours', () => {
-    expect(OFFLINE_CAP_HOURS).toBe(8);
+  it('model cost, base time, and score match specifications', () => {
+    expect(getModelCost(0)).toBe(10);
+    expect(getModelBaseSeconds(0)).toBe(6);
+    expect(getModelCost(1)).toBe(30);
+    expect(getModelBaseSeconds(1)).toBe(10);
+    expect(getModelScore(0, 0)).toBe(10);
+    expect(getModelIncomeMultiplier(-1)).toBe(1);
+    expect(getModelIncomeMultiplier(0)).toBeCloseTo(1.08, 2);
   });
 
-  it('next GPU price with 2 GPUs owned is round(3500 * (1.12 ** 2))', () => {
-    const expected = Math.round(3500 * (1.12 ** 2));
-    expect(getGpuPrice(2)).toBe(expected);
-    expect(expected).toBe(4390); // 3500 * 1.2544 = 4390.4 -> 4390
+  it('boost removes max(0.25, 0.015 * total)', () => {
+    expect(getBoostSecondsRemoved(6)).toBe(0.25);
+    expect(getBoostSecondsRemoved(100)).toBe(1.5);
   });
 
-  it('all model ladders are defined and non-empty', () => {
-    expect(CLAUDE_LADDER.length).toBeGreaterThanOrEqual(20);
-    expect(CLAUDE_LADDER[0]).toBe('Claude 1');
-    expect(OPENAI_LADDER[0]).toBe('GPT-1');
-    expect(GEMINI_LADDER[0]).toBe('Bard');
-    expect(GROK_LADDER[0]).toBe('Grok-1');
-    expect(DEEPSEEK_LADDER[0]).toBe('DeepSeek Coder');
-    expect(LLAMA_LADDER[0]).toBe('Llama 1');
-    expect(MISTRAL_LADDER[0]).toBe('Mistral 7B');
-    expect(QWEN_LADDER[0]).toBe('Qwen');
+  it('team and cluster costs match formula', () => {
+    expect(getEngineerCost(0)).toBe(30);
+    expect(getSalesCost(0)).toBe(40);
+    expect(getResearcherCost(0)).toBe(60);
+    expect(getGpuClusterCost(0)).toBe(50);
   });
 
-  it('getRivalModelName picks the appropriate ladder model based on score', () => {
-    expect(getRivalModelName('helix', 18)).toBe('GPT-2');
-    expect(getRivalModelName('pebble', 9)).toBe('DeepSeek Coder');
-    expect(getRivalModelName('northglass', 14)).toBe('Bard');
-    expect(getRivalModelName('vesper', 11)).toBe('Grok-1');
+  it('building multiplier doubles with each building owned', () => {
+    expect(getBuildingMultiplier(0)).toBe(1);
+    expect(getBuildingMultiplier(1)).toBe(2);
+    expect(getBuildingMultiplier(2)).toBe(4);
   });
 });

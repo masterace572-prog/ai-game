@@ -1,7 +1,9 @@
 import React from 'react';
 
 export interface ProgressBarProps {
-  progress: number;
+  progress?: number;
+  value?: number;
+  max?: number;
   color?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -9,11 +11,21 @@ export interface ProgressBarProps {
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   progress,
+  value,
+  max = 1,
   color = 'var(--brand-claude)',
   className = '',
   style,
 }) => {
-  const clamped = Math.max(0, Math.min(1, progress));
+  const fraction =
+    typeof progress === 'number'
+      ? progress
+      : typeof value === 'number' && max > 0
+      ? value / max
+      : 0;
+
+  const clamped = Math.max(0, Math.min(1, fraction));
+
   return (
     <div
       className={`progress-track ${className}`.trim()}

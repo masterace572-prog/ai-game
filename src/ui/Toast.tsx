@@ -1,25 +1,30 @@
 import React, { useEffect } from 'react';
-import { Award } from 'lucide-react';
+import { Award, X } from 'lucide-react';
 import { Icon } from './Icon';
 
 export interface ToastProps {
   message: string;
-  onDismiss: () => void;
+  onDismiss?: () => void;
+  onClose?: () => void;
   durationMs?: number;
 }
 
 export const Toast: React.FC<ToastProps> = ({
   message,
   onDismiss,
+  onClose,
   durationMs = 4000,
 }) => {
+  const dismiss = onDismiss ?? onClose;
+
   useEffect(() => {
+    if (!dismiss) return;
     const timer = setTimeout(() => {
-      onDismiss();
+      dismiss();
     }, durationMs);
 
     return () => clearTimeout(timer);
-  }, [onDismiss, durationMs]);
+  }, [dismiss, durationMs]);
 
   return (
     <div
@@ -32,36 +37,39 @@ export const Toast: React.FC<ToastProps> = ({
         right: 'var(--space-4)',
         zIndex: 1000,
         backgroundColor: 'var(--surface)',
-        border: '1px solid var(--primary)',
+        border: '1px solid var(--accent)',
         borderRadius: 'var(--radius-md)',
         padding: 'var(--space-3) var(--space-4)',
         display: 'flex',
         alignItems: 'center',
         gap: 'var(--space-3)',
+        boxShadow: 'var(--shadow-md)',
       }}
     >
-      <Icon icon={Award} size={20} color="var(--primary)" aria-hidden="true" />
+      <Icon icon={Award} size={20} color="var(--accent)" aria-hidden="true" />
       <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', flex: 1 }}>
         {message}
       </span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--text-tertiary)',
-          fontSize: '12px',
-          cursor: 'pointer',
-          padding: 'var(--space-1) var(--space-2)',
-          minHeight: '48px',
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        Dismiss
-      </button>
+      {dismiss && (
+        <button
+          type="button"
+          onClick={dismiss}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-tertiary)',
+            cursor: 'pointer',
+            padding: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 };
+
 export default Toast;

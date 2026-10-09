@@ -1,578 +1,18 @@
-// Balance constants from GAME_DESIGN.md
-// This file is the single source of truth for gameplay numbers.
+// Balance constants and definitions for Model Foundry
+// Single source of truth for all idle tycoon mechanics.
 
-export const SAVE_KEY = 'modelfoundry.save.v1';
-export const BACKUP_SAVE_KEY = 'modelfoundry.save.backup';
+import type { ProductDef, ProductId, BuildingDef, FundingDef, AchievementId } from './types';
 
-export const APP_VERSION = '0.2.0';
+export const SAVE_KEY = 'modelfoundry.save.v2';
+export const BACKUP_SAVE_KEY = 'modelfoundry.save.v2.backup';
+export const SAVE_V1_KEY = 'modelfoundry.save.v1';
+export const BACKUP_V1_KEY = 'modelfoundry.save.v1.backup';
+
+export const APP_VERSION = '0.3.0';
 export const DEFAULT_LAB_NAME = 'Claude';
+export const STARTING_CASH = 10;
 
-// Starting resources
-export const STARTING_CASH = 25000;
-export const STARTING_GPUS = 2;
-export const STARTING_POWER_CAP = 4;
-export const STARTING_RESEARCHERS = 1;
-export const STARTING_DATA_QUALITY = 20;
-export const STARTING_REPUTATION = 0;
-export const STARTING_ERA = 1;
-export const STARTING_ERA_POINTS = 0;
-
-// Market & Appeal constants from GAME_DESIGN.md
-export const BASE_DEMAND = 6;
-export const DEMAND_GROWTH_PER_ERA = 1.55;
-export const SUBSCRIPTION_SHARE = 0.65;
-export const API_SHARE = 0.35;
-export const FRESHNESS_DECAY_PER_MIN = 0.015;
-export const FRESHNESS_FLOOR = 0.40;
-export const REPUTATION_DECAY_PER_MIN = 0.2;
-
-// Offline cap
-export const OFFLINE_CAP_HOURS = 8;
-export const OFFLINE_CAP_SECONDS = OFFLINE_CAP_HOURS * 3600;
-export const OFFLINE_CAP_MS = OFFLINE_CAP_SECONDS * 1000;
-
-// GPU Price formula inputs
-// cost = round(3500 * (1.12 ^ gpusOwned))
-export const GPU_BASE_PRICE = 3500;
-export const GPU_PRICE_GROWTH = 1.12;
-
-export function getGpuPrice(gpusOwned: number): number {
-  return Math.round(GPU_BASE_PRICE * Math.pow(GPU_PRICE_GROWTH, gpusOwned));
-}
-
-// Researcher Price formula inputs
-// cost = round(8000 * (1.18 ^ researchers))
-export const RESEARCHER_BASE_COST = 8000;
-export const RESEARCHER_COST_GROWTH = 1.18;
-
-export function getResearcherPrice(researchersOwned: number, hasRecruiter: boolean = false): number {
-  const base = Math.round(RESEARCHER_BASE_COST * Math.pow(RESEARCHER_COST_GROWTH, researchersOwned));
-  return hasRecruiter ? Math.round(base * 0.85) : base;
-}
-
-// Data upgrade formula inputs
-// cost = round(400 * (1.09 ^ dataQuality))
-export const DATA_UPGRADE_BASE_COST = 400;
-export const DATA_UPGRADE_COST_GROWTH = 1.09;
-export const DATA_UPGRADE_AMOUNT = 2;
-
-export function getDataUpgradePrice(dataQuality: number): number {
-  return Math.round(DATA_UPGRADE_BASE_COST * Math.pow(DATA_UPGRADE_COST_GROWTH, dataQuality));
-}
-
-// Cooling upgrade formula inputs
-// cost = 7000 * (1 + coolingPurchases), max 5 purchases
-export const COOLING_UPGRADE_BASE_COST = 7000;
-export const COOLING_UPGRADE_POWER_CAP = 2;
-export const COOLING_MAX_PURCHASES = 5;
-
-export function getCoolingPrice(coolingPurchases: number): number {
-  return COOLING_UPGRADE_BASE_COST * (1 + coolingPurchases);
-}
-
-// Data Centers from GAME_DESIGN.md
-export interface DataCenterDef {
-  tier: number;
-  name: string;
-  cost: number;
-  powerCapAdded: number;
-  scoreMultiplierAdded: number;
-}
-
-export const DATA_CENTERS: DataCenterDef[] = [
-  { tier: 1, name: 'Colocation Rack', cost: 20000, powerCapAdded: 6, scoreMultiplierAdded: 0.02 },
-  { tier: 2, name: 'Dedicated Pod', cost: 50000, powerCapAdded: 10, scoreMultiplierAdded: 0.02 },
-  { tier: 3, name: 'Regional Facility', cost: 120000, powerCapAdded: 16, scoreMultiplierAdded: 0.02 },
-  { tier: 4, name: 'Hyperscale Campus', cost: 300000, powerCapAdded: 24, scoreMultiplierAdded: 0.02 },
-];
-
-export const DATA_CENTER_UPKEEP_PER_SEC = 0.20;
-export const BASE_SALARY_PER_RESEARCHER_PER_SEC = 0.15;
-export const OFFICE_SNACKS_COST = 5000;
-export const OFFICE_SNACKS_SALARY_MULT = 0.95;
-export const MARKETING_CAMPAIGN_COST = 2000;
-export const MARKETING_CAMPAIGN_DURATION = 180;
-export const MARKETING_CAMPAIGN_COOLDOWN = 180;
-export const MARKETING_HYPE_BOOST = 1.25;
-export const STOCK_MAX_SHARES = 200;
-export const STOCK_SELL_FEE = 0.02; // pays 0.98
-
-// Research tree nodes from GAME_DESIGN.md
-export type ResearchNodeId =
-  | 'clean-data'
-  | 'optimizers'
-  | 'cheap-flops'
-  | 'recruiter'
-  | 'brand'
-  | 'mixture'
-  | 'reasoning'
-  | 'agent-harness';
-
-export interface ResearchNodeDef {
-  id: ResearchNodeId;
-  name: string;
-  cost: number;
-  effect: string;
-  requiresNodeId?: ResearchNodeId;
-  scoreMultiplier?: number;
-}
-
-export const RESEARCH_NODES: Record<ResearchNodeId, ResearchNodeDef> = {
-  'clean-data': {
-    id: 'clean-data',
-    name: 'Clean data pipeline',
-    cost: 2100,
-    effect: 'Data quality +5, once',
-  },
-  'optimizers': {
-    id: 'optimizers',
-    name: 'Better optimizers',
-    cost: 5600,
-    effect: 'Model score ×1.08',
-    scoreMultiplier: 1.08,
-  },
-  'cheap-flops': {
-    id: 'cheap-flops',
-    name: 'Cheap flops',
-    cost: 7000,
-    effect: 'Training time ×0.90',
-  },
-  'recruiter': {
-    id: 'recruiter',
-    name: 'Recruiter',
-    cost: 12000,
-    effect: 'Hire researcher cost ×0.85',
-  },
-  'brand': {
-    id: 'brand',
-    name: 'Brand studio',
-    cost: 15000,
-    effect: 'Market revenue ×1.10',
-  },
-  'mixture': {
-    id: 'mixture',
-    name: 'Mixture kernels',
-    cost: 25000,
-    effect: 'Model score ×1.12',
-    requiresNodeId: 'optimizers',
-    scoreMultiplier: 1.12,
-  },
-  'reasoning': {
-    id: 'reasoning',
-    name: 'Reasoning traces',
-    cost: 80000,
-    effect: 'Model score ×1.15',
-    requiresNodeId: 'mixture',
-    scoreMultiplier: 1.15,
-  },
-  'agent-harness': {
-    id: 'agent-harness',
-    name: 'Agent harness',
-    cost: 200000,
-    effect: 'Model score ×1.15, required for Frontier',
-    requiresNodeId: 'reasoning',
-    scoreMultiplier: 1.15,
-  },
-};
-
-export const RESEARCH_NODE_ORDER: ResearchNodeId[] = [
-  'clean-data',
-  'optimizers',
-  'cheap-flops',
-  'recruiter',
-  'brand',
-  'mixture',
-  'reasoning',
-  'agent-harness',
-];
-
-// Events system constants and definitions from GAME_DESIGN.md
-export const EVENT_CHECK_INTERVAL = 60; // 60s real time
-export const EVENT_CHANCE = 0.25; // 25% chance
-export const EVENT_COOLDOWN = 90; // 90s cooldown after any event
-export const EVENT_TIMED_DURATION = 180; // 180s duration for timed events
-
-export type EventId =
-  | 'hype'
-  | 'outage'
-  | 'rules'
-  | 'viral'
-  | 'leak'
-  | 'poach'
-  | 'brownout'
-  | 'surprise'
-  | 'investor'
-  | 'stumble'
-  | 'dataset'
-  | 'quiet';
-
-export interface EventDefinition {
-  id: EventId;
-  title: string;
-  description: string;
-  isChoice?: boolean;
-}
-
-export const EVENTS: Record<EventId, EventDefinition> = {
-  hype: {
-    id: 'hype',
-    title: 'Hype wave',
-    description: 'An influential tech newsletter features your lab. For 180s, hype is at least 1.25 and reputation gains +8.',
-  },
-  outage: {
-    id: 'outage',
-    title: 'Chip outage',
-    description: 'Cloud provider hardware supply chain disruption. For 180s, usable GPUs count as half (min 1).',
-  },
-  rules: {
-    id: 'rules',
-    title: 'Draft rules',
-    description: 'Regulatory compliance review launched. For 180s, revenue is reduced by 20% and venture funding is paused.',
-  },
-  viral: {
-    id: 'viral',
-    title: 'Viral demo',
-    description: 'An interactive demo built on your model spreads across social networks, generating immediate revenue and reputation.',
-  },
-  leak: {
-    id: 'leak',
-    title: 'Data leak',
-    description: 'A configuration error exposed an internal training bucket. Data quality drops by 5 and reputation drops by 8.',
-  },
-  poach: {
-    id: 'poach',
-    title: 'Recruiter calls',
-    description: 'A well-funded rival is courting your talent with inflated equity offers.',
-    isChoice: true,
-  },
-  brownout: {
-    id: 'brownout',
-    title: 'Brownout',
-    description: 'Substation maintenance forces local power reduction. Power cap is reduced by 2 for 180s (min 1).',
-  },
-  surprise: {
-    id: 'surprise',
-    title: 'Surprise benchmark',
-    description: 'A newly released independent benchmark reassesses your public model with updated evaluation criteria.',
-  },
-  investor: {
-    id: 'investor',
-    title: 'Investor visit',
-    description: 'A venture capitalist stops by the laboratory looking to make an off-cycle investment.',
-    isChoice: true,
-  },
-  stumble: {
-    id: 'stumble',
-    title: 'Rival stumble',
-    description: 'A rival lab releases a model with catastrophic regressions, cutting their market appeal in half for 180s.',
-  },
-  dataset: {
-    id: 'dataset',
-    title: 'Community dataset',
-    description: 'An open collective publishes a meticulously cleaned multimodal benchmark dataset (+4 data quality).',
-  },
-  quiet: {
-    id: 'quiet',
-    title: 'Quiet week',
-    description: 'Routine maintenance and quiet markets give your engineers room to optimize cache efficiency (+$500).',
-  },
-};
-
-export const ALL_EVENT_IDS: EventId[] = [
-  'hype',
-  'outage',
-  'rules',
-  'viral',
-  'leak',
-  'poach',
-  'brownout',
-  'surprise',
-  'investor',
-  'stumble',
-  'dataset',
-  'quiet',
-];
-
-// Achievements definitions from GAME_DESIGN.md
-export type AchievementId =
-  | 'first-spark'
-  | 'on-the-board'
-  | 'pocket-lab'
-  | 'full-house'
-  | 'data-hoarder'
-  | 'upset'
-  | 'market-leader'
-  | 'millionaire'
-  | 'public-company'
-  | 'night-shift'
-  | 'new-era'
-  | 'frontier';
-
-export interface AchievementDefinition {
-  id: AchievementId;
-  name: string;
-  rule: string;
-  bonusText: string;
-  scoreMultiplier?: number;
-  revenueMultiplier?: number;
-}
-
-export const ACHIEVEMENTS: Record<AchievementId, AchievementDefinition> = {
-  'first-spark': {
-    id: 'first-spark',
-    name: 'First spark',
-    rule: 'Finish training 1 model',
-    bonusText: 'Score ×1.01',
-    scoreMultiplier: 1.01,
-  },
-  'on-the-board': {
-    id: 'on-the-board',
-    name: 'On the board',
-    rule: 'Launch 1 model',
-    bonusText: 'Revenue ×1.01',
-    revenueMultiplier: 1.01,
-  },
-  'pocket-lab': {
-    id: 'pocket-lab',
-    name: 'Pocket lab',
-    rule: 'Own 5 GPUs',
-    bonusText: 'Badge',
-  },
-  'full-house': {
-    id: 'full-house',
-    name: 'Full house',
-    rule: 'Have 5 researchers',
-    bonusText: 'Badge',
-  },
-  'data-hoarder': {
-    id: 'data-hoarder',
-    name: 'Data hoarder',
-    rule: 'Data quality ≥ 60',
-    bonusText: 'Badge',
-  },
-  'upset': {
-    id: 'upset',
-    name: 'Upset',
-    rule: 'Your best score > Helix Atelier\'s best score',
-    bonusText: 'Revenue ×1.01',
-    revenueMultiplier: 1.01,
-  },
-  'market-leader': {
-    id: 'market-leader',
-    name: 'Market leader',
-    rule: 'Market share ≥ 40% at any moment',
-    bonusText: 'Revenue ×1.02',
-    revenueMultiplier: 1.02,
-  },
-  'millionaire': {
-    id: 'millionaire',
-    name: 'Millionaire',
-    rule: 'Cash on hand ≥ $1,000,000',
-    bonusText: 'Badge',
-  },
-  'public-company': {
-    id: 'public-company',
-    name: 'Funded',
-    rule: 'Take Series A funding',
-    bonusText: 'Badge',
-  },
-  'night-shift': {
-    id: 'night-shift',
-    name: 'Night shift',
-    rule: 'Return from at least 1 hour offline',
-    bonusText: 'Badge',
-  },
-  'new-era': {
-    id: 'new-era',
-    name: 'New era',
-    rule: 'Prestige once',
-    bonusText: 'Score ×1.01',
-    scoreMultiplier: 1.01,
-  },
-  'frontier': {
-    id: 'frontier',
-    name: 'Frontier light',
-    rule: 'Launch a Frontier model',
-    bonusText: 'Revenue ×1.02',
-    revenueMultiplier: 1.02,
-  },
-};
-
-export const ALL_ACHIEVEMENT_IDS: AchievementId[] = [
-  'first-spark',
-  'on-the-board',
-  'pocket-lab',
-  'full-house',
-  'data-hoarder',
-  'upset',
-  'market-leader',
-  'millionaire',
-  'public-company',
-  'night-shift',
-  'new-era',
-  'frontier',
-];
-
-export interface FundingDef {
-  id: 'seed' | 'series-a' | 'series-b';
-  name: string;
-  cashAmount: number;
-  salaryMultiplier: number;
-  requiredBestScore: number;
-}
-
-export const FUNDING_ROUNDS: Record<string, FundingDef> = {
-  seed: {
-    id: 'seed',
-    name: 'Seed',
-    cashAmount: 40000,
-    salaryMultiplier: 1.10,
-    requiredBestScore: 0,
-  },
-  'series-a': {
-    id: 'series-a',
-    name: 'Series A',
-    cashAmount: 180000,
-    salaryMultiplier: 1.15,
-    requiredBestScore: 80,
-  },
-  'series-b': {
-    id: 'series-b',
-    name: 'Series B',
-    cashAmount: 750000,
-    salaryMultiplier: 1.20,
-    requiredBestScore: 220,
-  },
-};
-
-// Model sizes
-export interface ModelSizeDefinition {
-  id: 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'frontier';
-  name: string;
-  baseScore: number;
-  baseSeconds: number;
-  cashCost: number;
-  minUsableGpus: number;
-  minResearchers: number;
-  requiredDescription: string;
-}
-
-export const MODEL_SIZES: Record<string, ModelSizeDefinition> = {
-  tiny: {
-    id: 'tiny',
-    name: 'Tiny',
-    baseScore: 12,
-    baseSeconds: 30,
-    cashCost: 350,
-    minUsableGpus: 1,
-    minResearchers: 1,
-    requiredDescription: 'nothing',
-  },
-  small: {
-    id: 'small',
-    name: 'Small',
-    baseScore: 36,
-    baseSeconds: 84,
-    cashCost: 1750,
-    minUsableGpus: 2,
-    minResearchers: 1,
-    requiredDescription: 'nothing',
-  },
-  medium: {
-    id: 'medium',
-    name: 'Medium',
-    baseScore: 90,
-    baseSeconds: 340,
-    cashCost: 8400,
-    minUsableGpus: 4,
-    minResearchers: 2,
-    requiredDescription: 'at least 1 model launched',
-  },
-  large: {
-    id: 'large',
-    name: 'Large',
-    baseScore: 160,
-    baseSeconds: 1500,
-    cashCost: 60000,
-    minUsableGpus: 8,
-    minResearchers: 4,
-    requiredDescription: 'at least 1 Medium launched',
-  },
-  huge: {
-    id: 'huge',
-    name: 'Huge',
-    baseScore: 360,
-    baseSeconds: 5400,
-    cashCost: 250000,
-    minUsableGpus: 16,
-    minResearchers: 8,
-    requiredDescription: 'Series A funding taken',
-  },
-  frontier: {
-    id: 'frontier',
-    name: 'Frontier',
-    baseScore: 800,
-    baseSeconds: 21600,
-    cashCost: 1000000,
-    minUsableGpus: 32,
-    minResearchers: 12,
-    requiredDescription: 'Series B taken AND research node agent-harness owned',
-  },
-};
-
-// Rival start definitions (Era 1)
-export interface RivalDefinition {
-  id: string;
-  name: string;
-  style: string;
-  startingBestScore: number;
-  startingStockPrice: number;
-  speedMultiplier: number;
-  growthFactor: number;
-  hypeMultiplier?: number;
-}
-
-export const RIVALS_ERA_1: RivalDefinition[] = [
-  {
-    id: 'helix',
-    name: 'ChatGPT',
-    style: 'Balanced, slightly ahead',
-    startingBestScore: 18,
-    startingStockPrice: 120,
-    speedMultiplier: 1.30,
-    growthFactor: 1.056,
-  },
-  {
-    id: 'pebble',
-    name: 'DeepSeek',
-    style: 'Many small models',
-    startingBestScore: 9,
-    startingStockPrice: 40,
-    speedMultiplier: 0.91,
-    growthFactor: 1.010,
-  },
-  {
-    id: 'northglass',
-    name: 'Gemini',
-    style: 'Slow, larger models',
-    startingBestScore: 14,
-    startingStockPrice: 80,
-    speedMultiplier: 1.82,
-    growthFactor: 1.084,
-  },
-  {
-    id: 'vesper',
-    name: 'Grok',
-    style: 'Hype, average models',
-    startingBestScore: 11,
-    startingStockPrice: 55,
-    speedMultiplier: 1.30,
-    growthFactor: 1.035,
-    hypeMultiplier: 1.15,
-  },
-];
-
-// Model name ladders
+// Model ladders
 export const CLAUDE_LADDER = [
   'Claude 1', 'Claude Instant', 'Claude 2', 'Claude 2.1', 'Claude 3 Haiku',
   'Claude 3 Sonnet', 'Claude 3 Opus', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet',
@@ -621,29 +61,422 @@ export const QWEN_LADDER = [
   'Qwen', 'Qwen1.5', 'Qwen2', 'Qwen2.5', 'Qwen3', 'Qwen4', 'Qwen Omega',
 ] as const;
 
-export function getRivalModelName(rivalId: string, score: number): string {
-  const ladderMap: Record<string, readonly string[]> = {
-    helix: OPENAI_LADDER,
-    pebble: DEEPSEEK_LADDER,
-    northglass: GEMINI_LADDER,
-    vesper: GROK_LADDER,
-    copperline: LLAMA_LADDER,
-    bracket: MISTRAL_LADDER,
-  };
-  const ladder = ladderMap[rivalId] ?? OPENAI_LADDER;
-  const idx = Math.min(ladder.length - 1, Math.max(0, Math.floor(Math.max(0, score - 8) / 10)));
+// Products
+export const PRODUCTS: Record<ProductId, ProductDef> = {
+  chat: {
+    id: 'chat',
+    name: 'Chat App',
+    iconName: 'MessageSquare',
+    unlockStep: -1,
+    unlockModelName: 'Start',
+    baseCost: 5,
+    costGrowth: 1.12,
+    incomePerLevel: 0.38,
+  },
+  api: {
+    id: 'api',
+    name: 'API',
+    iconName: 'Plug',
+    unlockStep: 1,
+    unlockModelName: 'Claude Instant',
+    baseCost: 75,
+    costGrowth: 1.17,
+    incomePerLevel: 3.0,
+  },
+  code: {
+    id: 'code',
+    name: 'Coding Agent',
+    iconName: 'Code',
+    unlockStep: 4,
+    unlockModelName: 'Claude 3 Haiku',
+    baseCost: 1100,
+    costGrowth: 1.19,
+    incomePerLevel: 24,
+  },
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise',
+    iconName: 'Building2',
+    unlockStep: 7,
+    unlockModelName: 'Claude 3.5 Haiku',
+    baseCost: 16000,
+    costGrowth: 1.20,
+    incomePerLevel: 190,
+  },
+  mobile: {
+    id: 'mobile',
+    name: 'Voice & Mobile',
+    iconName: 'Smartphone',
+    unlockStep: 10,
+    unlockModelName: 'Claude Sonnet 4',
+    baseCost: 240000,
+    costGrowth: 1.21,
+    incomePerLevel: 1600,
+  },
+  science: {
+    id: 'science',
+    name: 'Gov & Science',
+    iconName: 'Atom',
+    unlockStep: 14,
+    unlockModelName: 'Claude Sonnet 4.5',
+    baseCost: 3600000,
+    costGrowth: 1.22,
+    incomePerLevel: 13000,
+  },
+  robots: {
+    id: 'robots',
+    name: 'Robotics',
+    iconName: 'Bot',
+    unlockStep: 19,
+    unlockModelName: 'Claude Opus 4.8',
+    baseCost: 55000000,
+    costGrowth: 1.23,
+    incomePerLevel: 110000,
+  },
+};
+
+export const PRODUCT_ORDER: ProductId[] = [
+  'chat',
+  'api',
+  'code',
+  'enterprise',
+  'mobile',
+  'science',
+  'robots',
+];
+
+// Product milestones
+export const MILESTONES: Array<{ level: number; mult: number }> = [
+  { level: 10, mult: 2 },
+  { level: 25, mult: 2 },
+  { level: 50, mult: 2 },
+  { level: 75, mult: 2 },
+  { level: 100, mult: 2 },
+  { level: 150, mult: 3 },
+  { level: 200, mult: 3 },
+  { level: 300, mult: 3 },
+  { level: 400, mult: 3 },
+];
+
+export function getProductMilestoneMultiplier(level: number): number {
+  let mult = 1;
+  for (const m of MILESTONES) {
+    if (level >= m.level) {
+      mult *= m.mult;
+    }
+  }
+  return mult;
+}
+
+export function getNextProductMilestone(level: number): {
+  prevLevel: number;
+  nextLevel: number;
+  multiplier: number;
+} | null {
+  let prevLevel = 0;
+  for (const m of MILESTONES) {
+    if (level < m.level) {
+      return {
+        prevLevel,
+        nextLevel: m.level,
+        multiplier: m.mult,
+      };
+    }
+    prevLevel = m.level;
+  }
+  return null;
+}
+
+export function getProductNextCost(productId: ProductId, level: number): number {
+  const def = PRODUCTS[productId];
+  return Math.round(def.baseCost * Math.pow(def.costGrowth, level));
+}
+
+export function getProductIncomePerSec(productId: ProductId, level: number): number {
+  if (level <= 0) return 0;
+  const def = PRODUCTS[productId];
+  const milestone = getProductMilestoneMultiplier(level);
+  return level * def.incomePerLevel * milestone;
+}
+
+// Model formulas
+export function getModelCost(step: number): number {
+  return Math.round(10 * Math.pow(3.0, step));
+}
+
+export function getModelBaseSeconds(step: number): number {
+  return 6 + 4.0 * Math.pow(step, 1.4);
+}
+
+export function getTrainingSpeed(engineers: number, gpuClusters: number): number {
+  return (1 + 0.05 * engineers) * (1 + 0.06 * gpuClusters);
+}
+
+export function getModelScore(step: number, researchers: number = 0): number {
+  if (step < 0) return 0;
+  return Math.round(10 * Math.pow(1.32, step) * (1 + 0.02 * researchers));
+}
+
+export function getModelIncomeMultiplier(modelStep: number): number {
+  if (modelStep < 0) return 1;
+  return Math.pow(1.08, modelStep + 1);
+}
+
+// Boost tap calculation
+export function getBoostSecondsRemoved(totalSeconds: number): number {
+  return Math.max(0.25, 0.015 * totalSeconds);
+}
+
+// Rivals definitions & scores
+export interface RivalDefinition {
+  id: string;
+  name: string;
+  shortCode: string;
+  strength: number;
+  ladder: readonly string[];
+}
+
+export const RIVAL_DEFINITIONS: RivalDefinition[] = [
+  {
+    id: 'helix',
+    name: 'ChatGPT',
+    shortCode: 'GP',
+    strength: 1.05,
+    ladder: OPENAI_LADDER,
+  },
+  {
+    id: 'northglass',
+    name: 'Gemini',
+    shortCode: 'GE',
+    strength: 1.0,
+    ladder: GEMINI_LADDER,
+  },
+  {
+    id: 'vesper',
+    name: 'Grok',
+    shortCode: 'GR',
+    strength: 0.95,
+    ladder: GROK_LADDER,
+  },
+  {
+    id: 'pebble',
+    name: 'DeepSeek',
+    shortCode: 'DS',
+    strength: 0.92,
+    ladder: DEEPSEEK_LADDER,
+  },
+];
+
+export function getRivalScore(step: number, strength: number): number {
+  return Math.round(10 * Math.pow(1.32, step) * strength);
+}
+
+export function getRivalModelName(rivalId: string, step: number): string {
+  const def = RIVAL_DEFINITIONS.find((r) => r.id === rivalId);
+  const ladder = def?.ladder ?? OPENAI_LADDER;
+  const idx = Math.min(ladder.length - 1, Math.max(0, step));
   return ladder[idx];
 }
 
-// Product name word lists from GAME_DESIGN.md
-export const NAME_ADJECTIVES = [
-  'Quiet', 'Amber', 'Brisk', 'Little', 'Copper', 'Velvet', 'Paper', 'North',
-  'Kind', 'Rapid', 'Soft', 'Bold', 'Glass', 'Lucky', 'Drift', 'Moss',
-  'Bright', 'Plain', 'Silver', 'Warm',
-] as const;
+export function getRivalNextTimer(step: number): number {
+  const base = 40 + Math.random() * 40; // 40 to 80
+  return base * Math.pow(1.18, step);
+}
 
-export const NAME_NOUNS = [
-  'Lantern', 'Sparrow', 'Kettle', 'Harbor', 'Notebook', 'Orbit', 'Meadow',
-  'Anvil', 'Comet', 'Basket', 'Lighthouse', 'Marble', 'Willow', 'Pocket',
-  'Echo', 'Furnace', 'Sail', 'Pebble', 'Chorus', 'Atlas',
-] as const;
+// Team costs
+export function getEngineerCost(engineersOwned: number): number {
+  return Math.round(30 * Math.pow(1.16, engineersOwned));
+}
+
+export function getSalesCost(salesOwned: number): number {
+  return Math.round(40 * Math.pow(1.17, salesOwned));
+}
+
+export function getResearcherCost(researchersOwned: number): number {
+  return Math.round(60 * Math.pow(1.18, researchersOwned));
+}
+
+export function getGpuClusterCost(clustersOwned: number): number {
+  return Math.round(50 * Math.pow(1.18, clustersOwned));
+}
+
+// Buildings
+export const BUILDINGS: BuildingDef[] = [
+  { index: 0, id: 'server-room', name: 'Server Room', cost: 10000, multiplier: 2, description: 'Double overall revenue (x2)' },
+  { index: 1, id: 'data-center', name: 'Data Center', cost: 500000, multiplier: 2, description: 'Double overall revenue (x2)' },
+  { index: 2, id: 'mega-campus', name: 'Mega Campus', cost: 25000000, multiplier: 2, description: 'Double overall revenue (x2)' },
+  { index: 3, id: 'gigawatt-site', name: 'Gigawatt Site', cost: 1250000000, multiplier: 2, description: 'Double overall revenue (x2)' },
+  { index: 4, id: 'orbital-compute', name: 'Orbital Compute', cost: 60000000000, multiplier: 2, description: 'Double overall revenue (x2)' },
+];
+
+export function getBuildingMultiplier(buildingsCount: number): number {
+  return Math.pow(2, Math.max(0, buildingsCount));
+}
+
+// Funding rounds
+export const FUNDING_ROUNDS: Record<string, FundingDef> = {
+  seed: {
+    id: 'seed',
+    name: 'Seed',
+    requiredStep: 2, // Claude 2
+    requiredModelName: 'Claude 2',
+    multiplier: 1.10,
+    minLumpSum: 1000,
+    requirementText: 'Claude 2',
+  },
+  'series-a': {
+    id: 'series-a',
+    name: 'Series A',
+    requiredStep: 6, // Claude 3 Opus
+    requiredModelName: 'Claude 3 Opus',
+    multiplier: 1.15,
+    minLumpSum: 10000,
+    requirementText: 'Claude 3 Opus',
+  },
+  'series-b': {
+    id: 'series-b',
+    name: 'Series B',
+    requiredStep: 9, // Claude 3.7 Sonnet
+    requiredModelName: 'Claude 3.7 Sonnet',
+    multiplier: 1.20,
+    minLumpSum: 100000,
+    requirementText: 'Claude 3.7 Sonnet',
+  },
+  'series-c': {
+    id: 'series-c',
+    name: 'Series C',
+    requiredStep: 15, // Claude Opus 4.5
+    requiredModelName: 'Claude Opus 4.5',
+    multiplier: 1.25,
+    minLumpSum: 1000000,
+    requirementText: 'Claude Opus 4.5',
+  },
+  'series-d': {
+    id: 'series-d',
+    name: 'Series D',
+    requiredStep: 21, // Claude Opus 5
+    requiredModelName: 'Claude Opus 5',
+    multiplier: 1.30,
+    minLumpSum: 10000000,
+    requirementText: 'Claude Opus 5',
+  },
+};
+
+export const FUNDING_ROUND_ORDER: Array<keyof typeof FUNDING_ROUNDS> = [
+  'seed',
+  'series-a',
+  'series-b',
+  'series-c',
+  'series-d',
+];
+export const FUNDING_ORDER = FUNDING_ROUND_ORDER;
+
+export function getFundingMultiplier(fundingTaken: Record<string, boolean> = {}): number {
+  let mult = 1.0;
+  for (const [id, def] of Object.entries(FUNDING_ROUNDS)) {
+    if (fundingTaken[id]) {
+      mult *= def.multiplier;
+    }
+  }
+  return mult;
+}
+
+export interface AchievementDef {
+  id: AchievementId;
+  name: string;
+  description: string;
+  bonusText: string;
+}
+
+export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
+  first_model: {
+    id: 'first_model',
+    name: 'First Frontier',
+    description: 'Launch your first model: Claude 1',
+    bonusText: 'Unlocks ladder progression',
+  },
+  chat_10: {
+    id: 'chat_10',
+    name: 'Hello World',
+    description: 'Reach Chat App Level 10',
+    bonusText: 'x2 Chat income milestone',
+  },
+  chat_50: {
+    id: 'chat_50',
+    name: 'Viral Scale',
+    description: 'Reach Chat App Level 50',
+    bonusText: 'x8 cumulative milestone',
+  },
+  hire_engineer: {
+    id: 'hire_engineer',
+    name: 'Talent Magnet',
+    description: 'Hire your first engineer',
+    bonusText: '+5% training speed',
+  },
+  claude_2: {
+    id: 'claude_2',
+    name: 'Next Horizon',
+    description: 'Launch Claude 2',
+    bonusText: 'Unlocks Seed funding',
+  },
+  claude_3_opus: {
+    id: 'claude_3_opus',
+    name: 'State of the Art',
+    description: 'Launch Claude 3 Opus',
+    bonusText: 'Industry benchmark leader',
+  },
+  seed_funding: {
+    id: 'seed_funding',
+    name: 'Investor Confidence',
+    description: 'Secure Seed funding round',
+    bonusText: '+10% permanent income',
+  },
+  first_million: {
+    id: 'first_million',
+    name: 'Unicorn Status',
+    description: 'Accumulate $1,000,000 in cash',
+    bonusText: 'High liquidity unlocked',
+  },
+  market_leader: {
+    id: 'market_leader',
+    name: 'Market Leader',
+    description: 'Capture over 50% of the industry market share',
+    bonusText: 'Premium revenue multiplier',
+  },
+  server_room: {
+    id: 'server_room',
+    name: 'Dedicated Iron',
+    description: 'Deploy your first Server Room',
+    bonusText: 'x2 permanent revenue',
+  },
+};
+
+export const ALL_ACHIEVEMENT_IDS: AchievementId[] = [
+  'first_model',
+  'chat_10',
+  'chat_50',
+  'hire_engineer',
+  'claude_2',
+  'claude_3_opus',
+  'seed_funding',
+  'first_million',
+  'market_leader',
+  'server_room',
+];
+
+// Stocks
+export const STOCK_MAX_SHARES = 200;
+export const STOCK_SELL_FEE = 0.02;
+
+export function getStockPrice(rivalScore: number): number {
+  return Math.max(10, Math.round(rivalScore * 3 + 20));
+}
+
+export function getStockSellProceeds(price: number, shares: number): number {
+  return Math.floor(shares * price * (1 - STOCK_SELL_FEE));
+}
+
+// Tap to earn
+export function getTapEarnAmount(incomePerSec: number): number {
+  return 0.50 + 0.05 * incomePerSec;
+}
