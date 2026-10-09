@@ -16,7 +16,7 @@ export const BACKUP_SAVE_KEY = 'modelfoundry.save.v2.backup';
 export const SAVE_V1_KEY = 'modelfoundry.save.v1';
 export const BACKUP_V1_KEY = 'modelfoundry.save.v1.backup';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.0';
 export const DEFAULT_LAB_NAME = 'Claude';
 export const STARTING_CASH = 10;
 

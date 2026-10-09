@@ -7,6 +7,7 @@ import {
   Download,
   Upload,
   Trash2,
+  Vibrate,
 } from 'lucide-react';
 import { Icon } from './Icon';
 import { Button } from './Button';
@@ -20,6 +21,7 @@ export interface SettingsScreenProps {
   onBackToMore: () => void;
   onToggleSound: () => void;
   onToggleReduceMotion: () => void;
+  onToggleVibration: () => void;
   onImportSave: (jsonText: string) => boolean;
   onWipeSave: () => void;
 }
@@ -29,6 +31,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onBackToMore,
   onToggleSound,
   onToggleReduceMotion,
+  onToggleVibration,
   onImportSave,
   onWipeSave,
 }) => {
@@ -42,6 +45,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const soundOn = gameState.soundEnabled ?? true;
   const reduceMotion = gameState.reduceMotion ?? false;
+  const vibrationOn = gameState.vibrationEnabled ?? true;
 
   const handleCopyExport = () => {
     const json = JSON.stringify(gameState, null, 2);
@@ -145,6 +149,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Button
               variant="secondary"
               onClick={onToggleReduceMotion}
+              style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
+            >
+              <span>Toggle</span>
+            </Button>
+          }
+        />
+
+        {/* Vibration */}
+        <GameRow
+          icon={Vibrate}
+          iconColor="var(--people)"
+          title="Vibration"
+          value={vibrationOn ? 'On' : 'Off'}
+          button={
+            <Button
+              variant="secondary"
+              onClick={onToggleVibration}
               style={{ minHeight: '48px', padding: '0 16px', fontSize: '13px' }}
             >
               <span>Toggle</span>

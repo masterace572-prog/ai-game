@@ -117,7 +117,43 @@ export interface GameState {
   upgrades?: Record<string, boolean>;
   buyAmount?: BuyAmount;
   autoBuyAccumulator?: number;
+  // v0.5.0 additions
+  vibrationEnabled?: boolean;
+  lastDoubleAt?: number;
+  dailyStreak?: number;
+  lastDailyClaimDate?: string;
+  day7BonusTimer?: number;
+  viralLaunchTimer?: number;
+  goldenGpuBuffTimer?: number;
+  hypeWaveTimer?: number;
+  dataDealActive?: boolean;
+  outageTimer?: number;
+  lawsuitPenaltyTimer?: number;
+  nextEventRollTime?: number;
 }
+
+export interface FloaterItem {
+  id: number;
+  x: number;
+  y: number;
+  amount: string;
+  color?: string; // 'var(--money)' or 'var(--gold)'
+}
+
+export type EventChoiceModalData =
+  | {
+      type: 'lawsuit';
+      title: string;
+      desc: string;
+      settleCost: number;
+    }
+  | {
+      type: 'talent_poach';
+      title: string;
+      desc: string;
+      counterCost: number;
+    }
+  | null;
 
 export type AchievementId =
   | 'first_model'

@@ -59,7 +59,37 @@ export function playTap(enabled: boolean = true): void {
 }
 
 /**
- * Slightly higher uplifting chime for model launch.
+ * Soft coin tick tone for purchases (products, team, upgrades).
+ */
+export function playPurchase(enabled: boolean = true): void {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(987.77, now); // B5
+    osc.frequency.exponentialRampToValueAtTime(1318.51, now + 0.04); // E6
+
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.045);
+  } catch {
+    // Audio output unavailable
+  }
+}
+
+/**
+ * Bright ascending arpeggio for model launch (C5 - E5 - G5 - C6).
  */
 export function playLaunch(enabled: boolean = true): void {
   if (!enabled) return;
@@ -67,21 +97,58 @@ export function playLaunch(enabled: boolean = true): void {
   if (!ctx) return;
 
   try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const noteTime = now + idx * 0.05;
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(780, ctx.currentTime + 0.14);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, noteTime);
 
-    gain.gain.setValueAtTime(0.07, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.06, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.15);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.15);
+    });
+  } catch {
+    // Audio output unavailable
+  }
+}
+
+/**
+ * Sparkling high chime when Golden GPU appears or is tapped.
+ */
+export function playGoldenGpu(enabled: boolean = true): void {
+  if (!enabled) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const notes = [1046.50, 1318.51, 1567.98, 2093.00]; // C6, E6, G6, C7
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const noteTime = now + idx * 0.04;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, noteTime);
+
+      gain.gain.setValueAtTime(0.07, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.22);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.22);
+    });
   } catch {
     // Audio output unavailable
   }

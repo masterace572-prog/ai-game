@@ -212,14 +212,41 @@ export function calculateTotalIncomePerSec(state: GameState): number {
   }
 
   const modelMult = getModelIncomeMultiplier(state.modelStep);
-  const share = calculateMarketShare(state);
+  let share = calculateMarketShare(state);
+  if ((state.lawsuitPenaltyTimer ?? 0) > 0) {
+    share = share * 0.8;
+  }
   const shareMult = calculateMarketShareMultiplier(share);
   const salesMult = 1 + 0.03 * (state.people?.sales ?? 0);
   const buildingMult = getBuildingMultiplier(state.buildings ?? 0);
   const fundingMult = getFundingMultiplier(state.fundingTaken ?? {});
   const globalUpgMult = getGlobalUpgradesMultiplier(state.upgrades);
 
-  return productIncomeSum * modelMult * shareMult * salesMult * buildingMult * fundingMult * globalUpgMult;
+  // Temporary event buffs / debuffs
+  let eventIncomeMult = 1.0;
+  if ((state.viralLaunchTimer ?? 0) > 0) {
+    eventIncomeMult *= 3.0;
+  }
+  if ((state.goldenGpuBuffTimer ?? 0) > 0) {
+    eventIncomeMult *= 7.0;
+  }
+  if ((state.day7BonusTimer ?? 0) > 0) {
+    eventIncomeMult *= 2.0;
+  }
+  if ((state.outageTimer ?? 0) > 0) {
+    eventIncomeMult *= 0.5;
+  }
+
+  return (
+    productIncomeSum *
+    modelMult *
+    shareMult *
+    salesMult *
+    buildingMult *
+    fundingMult *
+    globalUpgMult *
+    eventIncomeMult
+  );
 }
 
 /**
@@ -248,6 +275,7 @@ export function stepGame(
   let training: TrainingJob | null = state.training;
   let readyStep: number | null = state.readyStep;
   let modelStep = state.modelStep;
+  let dataDealActive = state.dataDealActive ?? false;
   const events: Array<{
     type: 'ready' | 'rival_step' | 'milestone';
     rivalId?: string;
@@ -258,7 +286,10 @@ export function stepGame(
 
   // Progress training
   if (training) {
-    const speed = getTrainingSpeed(state.people.engineers, state.gpuClusters, state.upgrades);
+    let speed = getTrainingSpeed(state.people.engineers, state.gpuClusters, state.upgrades);
+    if ((state.hypeWaveTimer ?? 0) > 0) {
+      speed *= 2.0;
+    }
     const newProgress = training.progress + deltaSeconds * speed;
     if (newProgress >= training.total) {
       readyStep = training.step;
@@ -311,7 +342,11 @@ export function stepGame(
             const cost = getModelCost(nextK);
             if (cost <= cash * 0.25) {
               cash -= cost;
-              const baseSec = getModelBaseSeconds(nextK);
+              let baseSec = getModelBaseSeconds(nextK);
+              if (dataDealActive) {
+                baseSec = Math.round(baseSec * 0.70 * 100) / 100;
+                dataDealActive = false;
+              }
               training = { step: nextK, progress: 0, total: baseSec };
             }
           }
@@ -351,6 +386,14 @@ export function stepGame(
     };
   });
 
+  // Event timer countdowns
+  const viralLaunchTimer = Math.max(0, (state.viralLaunchTimer ?? 0) - deltaSeconds);
+  const goldenGpuBuffTimer = Math.max(0, (state.goldenGpuBuffTimer ?? 0) - deltaSeconds);
+  const hypeWaveTimer = Math.max(0, (state.hypeWaveTimer ?? 0) - deltaSeconds);
+  const outageTimer = Math.max(0, (state.outageTimer ?? 0) - deltaSeconds);
+  const lawsuitPenaltyTimer = Math.max(0, (state.lawsuitPenaltyTimer ?? 0) - deltaSeconds);
+  const day7BonusTimer = Math.max(0, (state.day7BonusTimer ?? 0) - deltaSeconds);
+
   const nextState: GameState = {
     ...state,
     cash,
@@ -361,6 +404,13 @@ export function stepGame(
     products,
     rivals,
     autoBuyAccumulator,
+    dataDealActive,
+    viralLaunchTimer,
+    goldenGpuBuffTimer,
+    hypeWaveTimer,
+    outageTimer,
+    lawsuitPenaltyTimer,
+    day7BonusTimer,
     lastTickTime: Date.now(),
   };
 
@@ -390,10 +440,17 @@ export function startTraining(state: GameState): GameState {
   const cost = getModelCost(k);
   if (state.cash < cost) return state;
 
-  const baseSeconds = getModelBaseSeconds(k);
+  let baseSeconds = getModelBaseSeconds(k);
+  let dataDealActive = state.dataDealActive ?? false;
+  if (dataDealActive) {
+    baseSeconds = Math.round(baseSeconds * 0.70 * 100) / 100;
+    dataDealActive = false;
+  }
+
   return {
     ...state,
     cash: state.cash - cost,
+    dataDealActive,
     training: {
       step: k,
       progress: 0,
@@ -1060,6 +1117,26 @@ export interface OfflineReport {
   cashEarned: number;
 }
 
+export const DOUBLE_AWAY_COOLDOWN_MS = 4 * 3600 * 1000; // 4 hours
+
+export function canDoubleAwayEarnings(
+  lastDoubleAt: number | undefined | null,
+  now: number = Date.now()
+): { canDouble: boolean; cooldownRemainingMs: number; cooldownText: string } {
+  if (!lastDoubleAt) {
+    return { canDouble: true, cooldownRemainingMs: 0, cooldownText: '' };
+  }
+  const diff = now - lastDoubleAt;
+  if (diff >= DOUBLE_AWAY_COOLDOWN_MS) {
+    return { canDouble: true, cooldownRemainingMs: 0, cooldownText: '' };
+  }
+  const remaining = DOUBLE_AWAY_COOLDOWN_MS - diff;
+  const hours = Math.floor(remaining / (3600 * 1000));
+  const mins = Math.ceil((remaining % (3600 * 1000)) / (60 * 1000));
+  const cooldownText = hours > 0 ? `x2 in ${hours}h ${mins}m` : `x2 in ${mins}m`;
+  return { canDouble: false, cooldownRemainingMs: remaining, cooldownText };
+}
+
 export function simulateOfflineCatchUp(
   state: GameState,
   now: number = Date.now()
@@ -1067,8 +1144,8 @@ export function simulateOfflineCatchUp(
   const lastTick = state.lastTickTime || now;
   const elapsedSeconds = Math.max(0, Math.floor((now - lastTick) / 1000));
 
-  // Cap at 24 hours (86,400s)
-  const cappedElapsed = Math.min(elapsedSeconds, 86400);
+  // Cap at 8 hours (28,800s)
+  const cappedElapsed = Math.min(elapsedSeconds, 8 * 3600);
 
   if (cappedElapsed < 5) {
     return { nextState: { ...state, lastTickTime: now }, report: null };

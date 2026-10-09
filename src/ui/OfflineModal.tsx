@@ -1,12 +1,14 @@
 import React from 'react';
 import { Button } from './Button';
-import { Modal } from './Modal';
 import { formatMoney } from './format';
+import { canDoubleAwayEarnings } from '../game/logic';
 import type { OfflineReport } from '../game/logic';
 
 export interface OfflineModalProps {
   report: OfflineReport | null;
-  onClose: () => void;
+  lastDoubleAt?: number;
+  onCollect: () => void;
+  onCollectDouble: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -23,47 +25,91 @@ function formatDuration(seconds: number): string {
   return `${secs}s`;
 }
 
-export const OfflineModal: React.FC<OfflineModalProps> = ({ report, onClose }) => {
+export const OfflineModal: React.FC<OfflineModalProps> = ({
+  report,
+  lastDoubleAt,
+  onCollect,
+  onCollectDouble,
+}) => {
   if (!report) return null;
 
+  const doubleStatus = canDoubleAwayEarnings(lastDoubleAt);
+
   return (
-    <Modal isOpen={true} title="Welcome Back" onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          Your lab continued generating income while you were away.
-        </p>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'var(--scrim)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '480px',
+          backgroundColor: 'var(--surface)',
+          borderTopLeftRadius: 'var(--radius-card)',
+          borderTopRightRadius: 'var(--radius-card)',
+          borderTop: '1px solid var(--border)',
+          borderLeft: '1px solid var(--border)',
+          borderRight: '1px solid var(--border)',
+          padding: 'var(--space-5)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          gap: 'var(--space-3)',
+          boxShadow: 'var(--shadow-lg)',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            color: 'var(--text-tertiary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
+          While you were away
+        </span>
+
+        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+          {formatDuration(report.elapsedSeconds)} offline
+        </span>
 
         <div
           style={{
-            backgroundColor: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-control)',
-            padding: 'var(--space-3)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-2)',
+            fontSize: '36px',
+            fontWeight: 800,
+            color: 'var(--money)',
+            letterSpacing: '-0.02em',
+            margin: 'var(--space-1) 0',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Away Time</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-              {formatDuration(report.elapsedSeconds)}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Offline Income</span>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
-              +{formatMoney(report.cashEarned)}
-            </span>
-          </div>
+          +{formatMoney(report.cashEarned)}
         </div>
 
-        <Button variant="primary" fullWidth onClick={onClose}>
-          Claim Earnings
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', width: '100%', marginTop: 'var(--space-2)' }}>
+          <Button variant="secondary" fullWidth onClick={onCollect}>
+            Collect
+          </Button>
+
+          <Button
+            variant="primary"
+            fullWidth
+            disabled={!doubleStatus.canDouble}
+            onClick={onCollectDouble}
+          >
+            {doubleStatus.canDouble ? 'Collect x2' : doubleStatus.cooldownText}
+          </Button>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 

@@ -80,6 +80,17 @@ export function createInitialState(showFreshStartSheet: boolean = true): GameSta
     upgrades: {},
     buyAmount: '1',
     autoBuyAccumulator: 0,
+    vibrationEnabled: true,
+    lastDoubleAt: 0,
+    dailyStreak: 1,
+    lastDailyClaimDate: '',
+    day7BonusTimer: 0,
+    viralLaunchTimer: 0,
+    goldenGpuBuffTimer: 0,
+    hypeWaveTimer: 0,
+    dataDealActive: false,
+    outageTimer: 0,
+    lawsuitPenaltyTimer: 0,
   };
 }
 
@@ -152,6 +163,17 @@ function parseV2State(raw: string | null): GameState | null {
         upgrades: parsed.upgrades ?? {},
         buyAmount: parsed.buyAmount ?? '1',
         autoBuyAccumulator: parsed.autoBuyAccumulator ?? 0,
+        vibrationEnabled: parsed.vibrationEnabled ?? true,
+        lastDoubleAt: parsed.lastDoubleAt ?? 0,
+        dailyStreak: parsed.dailyStreak ?? 1,
+        lastDailyClaimDate: parsed.lastDailyClaimDate ?? '',
+        day7BonusTimer: parsed.day7BonusTimer ?? 0,
+        viralLaunchTimer: parsed.viralLaunchTimer ?? 0,
+        goldenGpuBuffTimer: parsed.goldenGpuBuffTimer ?? 0,
+        hypeWaveTimer: parsed.hypeWaveTimer ?? 0,
+        dataDealActive: parsed.dataDealActive ?? false,
+        outageTimer: parsed.outageTimer ?? 0,
+        lawsuitPenaltyTimer: parsed.lawsuitPenaltyTimer ?? 0,
       } as GameState;
     }
   } catch {
